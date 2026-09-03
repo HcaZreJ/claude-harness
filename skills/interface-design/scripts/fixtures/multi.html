@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><title>两屏</title>
+<style>
+  body{font:16px/1.6 -apple-system,sans-serif;margin:0;background:#fff;color:#1a1a1a}
+  .screen{max-width:760px;margin:0 auto;padding:64px 32px;min-height:760px;box-sizing:border-box}
+  h1{font-size:28px;margin:0 0 24px}
+  .card{border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin-bottom:16px}
+  .hot{background:#dc2626;color:#fff;border-color:#dc2626}
+  .cta{display:inline-block;background:#2563eb;color:#fff;padding:18px 56px;border-radius:8px;text-decoration:none;font-weight:600}
+</style>
+<section class="screen" id="s1" data-focus="#s1 .cta">
+  <h1>第一屏：焦点正确</h1>
+  <div class="card">一段普通说明文字。</div>
+  <a class="cta" href="#">开始</a>
+</section>
+<section class="screen" id="s2" data-focus="#s2 .cta">
+  <h1>第二屏：焦点被红卡抢走</h1>
+  <div class="card hot">这条红底横幅并不承载警示语义。</div>
+  <a class="cta" href="#">继续</a>
+</section>
