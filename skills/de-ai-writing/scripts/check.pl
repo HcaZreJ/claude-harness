@@ -1,16 +1,78 @@
 #!/usr/bin/env perl
-# 残渣检测：对草稿逐行匹配 AI 味预制件模式，输出命中行。
+# 残渣检测：对草稿逐句匹配 AI 味预制件模式，输出命中句。
 # 用法: perl check.pl <草稿文件>
+# 退出码: 0 无命中 / 1 有命中 / 2 文件打不开
 # 模式库放在脚本里执行、不读入模型上下文，防止模式本身被模仿。
 use strict; use warnings; use utf8;
 use open qw(:std :utf8);
 
 my $f = shift or die "用法: perl check.pl <草稿文件>\n";
-open my $fh, '<:utf8', $f or die "打不开 $f: $!\n";
+open my $fh, '<:utf8', $f or do { warn "打不开 $f: $!\n"; exit 2 };
 my @lines = <$fh>; close $fh; chomp @lines;
 
+# 逐行再切句，命中定位到句。中文一行常有几十句，只报行号读者找不到是哪一句。
+# 围栏代码块与行内代码是代码，不是给人读的散文，两者都不进检测。
+my (@units, @line_units);
+my $in_code = 0;
+for my $i (0 .. $#lines) {
+  if ($lines[$i] =~ /^\s*(?:```|~~~)/) { $in_code = !$in_code; next }
+  next if $in_code;
+  (my $line = $lines[$i]) =~ s/`[^`]*`//g;
+  next if $line =~ /^\s*$/;
+  push @line_units, [$i + 1, 0, $line];
+  my @sents = split /(?<=[。！？；!?;])/, $line;
+  @sents = ($line) unless @sents;
+  my $s = 0;
+  for my $sent (@sents) {
+    next if $sent =~ /^\s*$/;
+    push @units, [$i + 1, ++$s, $sent];
+  }
+}
+
+# 少数句式跨句成立（自问自答的问句与答句各自成句），这类规则对整行匹配
+my %LINE_SCOPE = ('自问自答' => 1);
+
+# 否定-转折句族：否定标记与转折标记在同一句内共现即命中。
+# 不设字数窗口——这一族有几十种表面形式，窗口卡死必漏（实测召回仅三成）。
+my @NEG = qw(不是 不在 不止 不只 不仅 不光 并非 并不 从来不 从不 绝不 与其 比起 相比 表面 看似);
+my @PIVOT = qw(而是 而在 而于 更是 恰恰 实际上 其实 反倒 反而 不如 真正的 真正 才是);
+# 「还」「更」在中文里太常见，只有跟递进、比较类否定标记搭档时才算转折
+my %PAIRED = (
+  '不止' => ['还', '更'], '不只' => ['还', '更'], '不仅' => ['还', '更'],
+  '不光' => ['还', '更'], '比起' => ['更'],       '相比' => ['更'],
+);
+
+sub detect_negation_pivot {
+  my ($s) = @_;
+  # 否定藏在后半句：先写正面主张再补一句「而不是……」。skill 点名这是最容易漏掉的排列
+  return '否定藏在后半句' if $s =~ /[，,]\s*而?不是/;
+  my @neg = grep { index($s, $_) >= 0 } @NEG;
+  return undef unless @neg;
+  for my $p (@PIVOT) {
+    return "$neg[0] … $p" if index($s, $p) >= 0;
+  }
+  for my $n (@neg) {
+    next unless $PAIRED{$n};
+    for my $p (@{ $PAIRED{$n} }) {
+      return "$n … $p" if index($s, $p) >= 0;
+    }
+  }
+  return undef;
+}
+
+# 待判档：「不是X，是Y」缺修辞转折词。事实澄清与修辞对仗同形，交给人判。
+sub detect_negation_plain {
+  my ($s) = @_;
+  return undef if defined detect_negation_pivot($s);
+  return '不是X，是Y' if $s =~ /不是[^。！？]{1,30}[，,]\s*(?:这|那|它|他|她)?是/;
+  return undef;
+}
+
 my @rules = (
-  ['否定-转折句族',   qr/不是[^。！？]{0,16}(?:而|就)是|不是[^。！？]{0,10}[，,]\s*是|不仅[^。！？]{0,10}更|不只[^。！？]{0,10}还|表面[^。！？]{0,8}实际|哪里是[^。！？]{0,10}分明|[，,]\s*而不是[^。！？]{0,20}|不在[^。！？，,]{1,12}[，,]\s*(?:而)?在/],
+  ['否定-转折句族',        \&detect_negation_pivot,
+    '把两组事实分别摆出来，让反差在读者脑子里自己发生'],
+  ['否定-转折句族 · 待判', \&detect_negation_plain,
+    '事实澄清可留；构成对仗的删。判完在核查记录里写一句依据'],
   ['黑话与升级词',    qr/赋能|抓手|闭环|底层逻辑|本质上|颗粒度|心智|重塑|颠覆|革命性|干货|保姆级|一文读懂|深度解析|硬核|王炸/],
   ['空转过渡',        qr/值得注意的是|不难发现|事实上[，,]|换句话说|更重要的是|总而言之|综上所述|众所周知/],
   ['伪口语预制件',    qr/白搭|拉满|翻车|踩坑|避雷|闭眼入|秒懂|一把梭|妥妥的|稳稳的|狠狠地?[a-z\x{4e00}-\x{9fff}]{0,3}|直接起飞|真香|绝了/],
@@ -18,11 +80,15 @@ my @rules = (
   ['自问自答',        qr/[^。！？]{2,12}？答案是|结果如何？|为什么？因为/],
   ['破折号',          qr/——/],
   ['英文AI词',        qr/\b(?:delve|tapestry|testament|underscore|pivotal|realm|navigate|foster|leverage|seamless|robust|elevate|crucial)\b|not just/i],
-  ['缺的-所有格',     qr/(?:你|我|他|她)(?:团队|岗位|同事|老板|朋友|家人|工位|公司|部门|领导|老师|孩子|父母|同学|想法|观点|习惯|职责|任务|方案|材料|资料|事情|问题|经历)/],
-  ['数字缺量词',      qr/(?:一|两|三|四|五)(?:判据|分类|要点|环节|阶段|步骤|部分|条件|因素|层次|维度|指标|方面|方法|规则|标准|路径|模块|结论|指令|观点|想法|问题|方向)|[0-9]+\s*(?:学生|案例|线索|样本|受访者|参与者|条目|题目)/],
+  ['缺的-所有格',     qr/(?<![自本忘])(?:你|我|他|她)(?:团队|岗位|同事|老板|朋友|家人|工位|公司|部门|领导|老师|孩子|父母|同学|想法|观点|习惯|职责|任务|方案|材料|资料|事情|问题|经历|排期|账号|权限|进度|日程|简历|绩效|目标|计划|结论|判断|时间|精力|手边|桌面|电脑|项目|需求|文档|代码|分支|工位|简历|报表|数据|流程|服务|模块)/,
+    '人称代词与名词之间补「的」'],
+  ['缺方位词',        qr/(?:贴|放|挂|摆|记|存|装|堆|码|钉|压|写)(?:工位|桌面|白板|抽屉|墙面|柜子|群里?|文档|表格|本子|纸面)(?![上里中内边侧面])/,
+    '动词后补介词与方位词：贴在工位上'],
+  ['数字缺量词',      qr/(?:一|二|两|三|四|五|六|七|八|九|十)(?:判据|分类|要点|环节|阶段|步骤|部分|条件|因素|层次|维度|指标|方面|方法|规则|标准|路径|模块|结论|指令|观点|想法|问题|方向|报表|版本|接口|字段|需求|缺陷|用例|场景|流程|渠道|账号|报告|文档|表格|页面|组件|服务|任务|分支|清单|结果|建议|选项|参数|配置|策略)|[0-9]+\s*(?:学生|案例|线索|样本|受访者|参与者|条目|题目|用户|请求|报表|接口|字段|需求|缺陷|用例|渠道|账号)/,
+    '数词与名词之间补量词'],
   ['拟人化AI',        qr/(?:AI|ai|它|大模型|模型|GPT|Claude)[\x{4e00}-\x{9fff}]{0,3}(?:敢|觉得|相信|认为|愿意|害怕|记得|忘记|喜欢|讨厌|以为|决定|希望|担心)|(?:AI|ai|它|大模型|模型|GPT|Claude)想(?:帮|让|要|着)/],
   ['市井/文言压缩词', qr/干活|活儿|事儿|把关|搞定|捣鼓|拿捏|交底|摊开|盘一盘|走一遍|问过去|发过去|摸底/],
-  ['生造术语',        qr/判据|提效|增效|盘明白|用研(?!究)|直出|自己盯|算频次|验关键数/],
+  ['生造术语',        qr/判据|提效|增效|盘明白|摊开.{1,6}日程|用研(?!究)|直出|自己盯|算频次|验关键数/],
   ['错搭配',          qr/配一(?:套|个|种|份|张|条)[\x{4e00}-\x{9fff}]|站在[\x{4e00}-\x{9fff}]{0,4}身份/],
 
   # 英文骨架残留：句子的词是中文的、结构是英文的。改法见 SKILL.md 规则 4 的八条轴。
@@ -47,30 +113,43 @@ my @rules = (
     '轴 1 动作用动词写。这一条误伤较多，逐句判'],
 );
 
-my $hit = 0;
-my $skeleton = 0;
-my @hints;
+my ($hit, $warn, $skeleton) = (0, 0, 0);
+my (@hints, %seen_hint);
 for my $r (@rules) {
-  my ($label, $re, $hint) = @$r;
-  my @hits;
-  for my $i (0 .. $#lines) {
-    push @hits, sprintf("  %d: %s", $i + 1, $lines[$i]) if $lines[$i] =~ $re;
+  my ($label, $matcher, $hint) = @$r;
+  my @out;
+  for my $u ($LINE_SCOPE{$label} ? @line_units : @units) {
+    my ($ln, $sn, $sent) = @$u;
+    my $note;
+    if (ref $matcher eq 'CODE') {
+      $note = $matcher->($sent);
+      next unless defined $note;
+    } else {
+      next unless $sent =~ $matcher;
+    }
+    push @out, sprintf("  L%d:%d: %s%s", $ln, $sn, $sent,
+                       (defined $note && length $note) ? "   ‹$note›" : "");
   }
-  if (@hits) {
-    $hit = 1;
-    print "[$label]\n", join("\n", @hits), "\n\n";
-    if (defined $hint) { $skeleton = 1; push @hints, "  $label → $hint"; }
+  next unless @out;
+  if ($label =~ /待判/) { $warn = 1 } else { $hit = 1 }
+  print "[$label]\n", join("\n", @out), "\n\n";
+  if (defined $hint && !$seen_hint{$hint}++) {
+    push @hints, "  $label → $hint";
+    $skeleton = 1 if $label =~ /^英文骨架/;
   }
 }
 
-if ($hit) {
+if ($hit || $warn) {
   print "处理规则：有所指→用所指重写；无所指→整句删。改成另一个俏皮说法=失败。\n";
   print "（破折号与修辞类：每保留一处都要单独写出理由，理由说明它传递了什么平铺直叙传递不了的信息。）\n";
+  print "\n改法方向：\n", join("\n", @hints), "\n" if @hints;
   if ($skeleton) {
-    print "\n英文骨架残留这几组的改法不是换词，是改结构——按 SKILL.md 规则 4 对应的轴重写：\n";
-    print join("\n", @hints), "\n";
-    print "先把这句话回译成英文写出来，数中文成分与英文成分是不是一一对应，再动手改。\n";
+    print "\n英文骨架残留改的是结构，不是词——先把这句回译成英文写出来，";
+    print "数中文成分与英文成分是不是一一对应，再动手改。\n";
   }
+  print "\n「· 待判」这一档正则分不出修辞与事实澄清，逐句人判后再动手。\n" if $warn;
 } else {
-  print "残渣检测：无命中。回到六个所指测试做最终判定。\n";
+  print "残渣检测：无命中。接第三步的四个答案，再走第四步的外部审查。\n";
 }
+
+exit($hit ? 1 : 0);

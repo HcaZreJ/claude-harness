@@ -42,6 +42,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.claude/hooks/check-prose-output.sh",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   },
   "enableWorkflows": false,
