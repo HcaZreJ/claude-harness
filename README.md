@@ -1,25 +1,25 @@
 # claude-harness
 
-一套 Claude Code 全局配置：一份 `CLAUDE.md`、6 个 hook 脚本、12 个 sub-agent 定义、4 个 skill、2 个脚本。我从 2026 年 3 月起每天用它，2026 年 9 月把它从 `~/.claude` 与 `~/.agents/skills` 里抽出来开源，MIT 许可证。
+一套 Claude Code 全局配置：一份 `CLAUDE.md`、5 个 hook 脚本、12 个 sub-agent 定义、4 个 skill、2 个脚本。我从 2026 年 3 月起每天用它，2026 年 9 月把它从 `~/.claude` 与 `~/.agents/skills` 里抽出来开源，MIT 许可证。
 
 这套配置到 2026 年 9 月为止的演进史写在仓库第一个 commit 的 message 里，`git log` 拉到底就能看到。想知道某条规则为什么长成现在这样，那里有 35 条带日期的记录。
 
 ## 这套配置解决什么问题
 
-在 prompt 里写一句「记得先写测试」「改动变大就先出方案」，这个 session 照做，下个 session 不照做，往往等它没照做了，你才发现。
+在 prompt 里写一句「记得先写测试」「高危改动先对齐再动手」，这个 session 照做，下个 session 不照做，往往等它没照做了，你才发现。
 
-这套配置把这些要求拆成三层，三层各交给一种机制：
+多数改动直接动手做完就好，约束只加在容易出事的那几类上。这套配置把约束拆成三层，三层各交给一种机制：
 
-- **判断条件写在 `CLAUDE.md` 里**：这次改动该不该升级到完整流程、触及计费代码要不要先写测试，两张表格逐条给出条件，动手的时候照着判定。
-- **`hooks/` 在工具层拦下操作**：同一次改动写到第 5 个不同文件时，`block-unplanned-sprawl.sh` 赶在写入之前 `exit 2`，这个文件没写成，模型只能改用别的做法。
-- **`agents/` 与 `scripts/` 把职责分开**：写实现的 agent 读不到隐藏测试，只拿得到一行 `PASSED: 8/12 test cases`；审文稿的 agent 只拿用户原话和成品，草稿和讨论记录一概读不到。
+- **判断条件写在 `CLAUDE.md` 里**：这次改动要不要先对齐再动手、触及计费代码要不要先写测试，两张表格逐条给出条件，动手的时候照着判定。
+- **`hooks/` 在工具层拦下操作**：改过业务代码又没跑过测试的 session 要结束时，Stop hook `block-no-tests.sh` 就 `exit 2`，这个 session 结束不了，模型只能先去跑测试。
+- **`agents/` 与 `scripts/` 把职责分开**：审文稿的 agent 只拿用户原话和成品，草稿和讨论记录一概读不到；用户点名「盲测」时，写实现的 agent 读不到隐藏测试，只拿得到一行 `PASSED: 8/12 test cases`。
 
 ## 仓库结构
 
 ```
-CLAUDE.md              全局规则：任务分流表、测试义务表、11 条铁律
+CLAUDE.md              全局规则：任务分流表、测试义务表、12 条铁律
 agents/                12 个 sub-agent 定义
-hooks/                 6 个 hook 脚本；hooks/tests/ 是它们的自测脚本
+hooks/                 5 个 hook 脚本；hooks/tests/ 是自测脚本
 scripts/               run-hidden-tests.sh、check-ci-reachability.sh；scripts/tests/ 是自测脚本
 skills/                4 个 skill
 settings.example.json  settings.json 样例，里面写了全局 hook 怎么挂
@@ -29,43 +29,37 @@ install.sh             建软链接
 
 ## 第一层：判断条件写在 CLAUDE.md 里
 
-全文 106 行，主体是两张表格。
+全文 105 行，主体是两张表格。
 
-**任务分流表**列了 7 个条件：触及 schema 或数据模型；触及 auth、权限、计费、判分；做不可逆数据操作；改动共享或全局配置；在同步请求路径上新增外部调用；用户提到 plan 或重构；本次改动即将写入第 5 个文件。命中任一条就加载 `skills/feature-workflow/SKILL.md`。那份 skill 有 219 行，写的是完整交付流程：对齐意图 → 写出 plan 文件 → 拆出 BACKLOG → 用户验收闸门 → 派发 sub-agent → 逐个工作单元验收 → 集成验证与收尾。一条都不命中就直接动手，这 219 行不会进入上下文。
+**任务分流表**列了 4 个条件：这次改动触及 schema、migration、数据模型；触及 auth、权限、计费、判分；做不可逆数据操作；或者用户说了 plan、设计、规划、重构、架构。命中任何一条就加载 `skills/feature-workflow/SKILL.md`，一条都不命中就直接动手。这 4 个条件只看改动的性质——碰没碰数据结构、权限、钱、不可逆操作——不看改了几个文件、改动有多大。
 
-**测试义务表**按改动内容分 5 档，同时命中多条时取最严的一条。改到计费、权限、判分、迁移的代码，或者做不可逆数据操作，用盲测分离，必须写测试；改动含条件分支、计算、状态推导，按 test-first 做，最多 8 个用例；普通函数与模块之间的粘合代码，按 test-first 做，最多 4 个用例；纯样式与静态文案，跑起来验收，留下命令输出或截图；配置与文档，不要求测试。
+加载之后，这份 skill 要求三件事。先在对话里贴一段不超过 10 行的说明，跟用户对齐：要做什么、不做什么、怎么算验收通过、有哪些高危假设，用户认可了再动手。再按 skill 里那张风险表，改动命中哪一条就在说明末尾回答对应的问题：migration 能不能回退；重复提交和重试是什么后果；外部输入在流进 prompt、SQL、shell 之前经过哪些边界检查；上线之后出问题怎么回滚。**之后的测试、实现、验证由主 session 自己做，不派 sub-agent**——红队评审、盲测分离、终审、把工作单元拆开并行做，这四件事列在 skill 末尾的 opt-in 表里，用户说出「红队」「盲测」「终审」「并行拆开做」才分别启用。
 
-这两张表格的条件，动手的时候照着一条条对就能判定。剩下的 11 条铁律也一样，例如「跑命令拿输出再下结论」「文档只写当前事实」「push 由用户明确要求」。
+**测试义务表**按改动内容分 5 档，同时命中多条时取最严的一条。改到计费、权限、判分、迁移的代码，或者做不可逆数据操作，必须写测试，按 test-first 做，用户点名「盲测」才做盲测分离；改动含条件分支、计算、状态推导，按 test-first 做，最多 8 个用例；普通函数与模块之间的粘合代码，按 test-first 做，最多 4 个用例；纯样式与静态文案，跑起来验收，留下命令输出或截图；配置与文档，不要求测试。新增测试目录时先跑一次 `scripts/check-ci-reachability.sh`——CI 选不中的测试从不运行。
+
+这两张表格的条件，动手的时候照着一条条对就能判定。剩下的 12 条铁律也一样，例如「跑命令拿输出再下结论」「范围 = 用户字面需求」「push 由用户明确要求」。
 
 `CLAUDE.md` 还有两节约束力更强、装上就一直生效的内容，装之前值得先看一眼。**Repo 初始化**要求每个仓库根目录有 `AGENTS.md` 作主入口，并指向 PROJECT / PATTERNS / TECHSTACK / DEVFLOW 四份内容文档；缺任何一份，进这个仓库先补文档再写业务代码。**Living Documentation** 规定改动触及什么就更新哪一份：功能或数据模型变了改 PROJECT.md，设计范式或代码约定变了改 PATTERNS.md，依赖或目录结构变了改 TECHSTACK.md，构建测试部署流程变了改 DEVFLOW.md。纯实现细节、bugfix、不改这些约定的重构不用动文档。这两节不合你的习惯就删掉，它们和三层机制之间没有依赖。
 
 ## 第二层：hooks 在工具层拦下操作
 
-拿 `hooks/block-unplanned-sprawl.sh` 举例。它挂在 `PreToolUse` 的 `Write|Edit` 上，按 `session_id` 把本 session 写过的不同文件记到 `~/.claude/hooks/logs/sprawl-<session_id>.files` 里。前 4 个文件放行；写第 5 个不同文件时（阈值取自 `SPRAWL_MAX_FILES`，默认 5），它 `exit 2`，在 stderr 打印一条拒绝消息，点名是哪个文件触发的：「本次会话已写入 4 个不同文件，即将触及第 5 个（`/tmp/fifth.py`）。加载 `feature-workflow` skill 判定走轻量路径还是完整流程，然后执行以下命令解除本闸门：`touch <unlock marker>`」
+拿 `hooks/block-no-tests.sh` 举例。它挂在 Stop 事件上，session 要结束时才运行：从 stdin 的 JSON 里取 `transcript_path`，读这个 session 的完整记录，先看 Write 和 Edit 写过的文件有没有业务代码后缀（`.py`、`.ts`、`.go` 等 8 种），再看 Bash 命令里有没有跑过测试（pytest、npm test、cargo test、go test 等）。这个 session 改过业务代码又没跑过测试，脚本就 `exit 2`，在 stderr 打印：「本次 session 修改了业务代码但未执行测试。请先运行测试验证改动再结束。」
 
-写操作没有发生，模型拿到的是一条拒绝消息。一次改动写着写着扩散到 5 个文件，模型不会自己停，这个脚本按文件数把这次写入拦下来。
+这个 session 没有结束，模型拿到的是一条拒绝消息。「写完代码跑测试」写在 prompt 里，模型可能照做也可能不照做；挂成 Stop hook，脚本在每个 session 结束前查一遍记录，改过业务代码又没跑过测试的 session 就结束不了。
 
-闸门确实是模型自己 `touch` 一下就能解除的，它拦不住铁了心要绕过的模型。它拦的是另一件事：没意识到这次改动已经变大。解除之前要先加载 `feature-workflow`，那份 skill 一进上下文，判定走轻量路径还是完整流程这件事就必须当场做一次；磁盘上多出来的那个 marker 就是这次判定发生过的记录。计数按 `session_id` 分开存，并行的多个 session 各算各的。
-
-`block-no-tests.sh` 同理：它在 Stop 时把「这个 session 改过业务代码但没跑过测试」这件事退回给模型，模型去跑测试，跑完再结束。
-
-6 个脚本各管一件事：
+5 个脚本各管一件事：
 
 | 脚本 | 事件 | 拦什么 |
 |---|---|---|
 | `hooks/block-pip.sh` | PreToolUse · Bash | `pip install` / `pip uninstall`，放行 `uv pip` |
 | `hooks/block-absolute-paths.sh` | PreToolUse · Write\|Edit | 往 `.py`、`.ts`、`.sh` 等代码与配置文件里写死 `/Users/…`、`/home/…`、`C:\Users` |
-| `hooks/block-unplanned-sprawl.sh` | PreToolUse · Write\|Edit | 本 session 的第 5 个不同文件 |
 | `hooks/block-hidden-tests.sh` | PreToolUse · Read\|Glob\|Grep | 任何指向 `tests/hidden/` 的 Read、Glob、Grep |
 | `hooks/block-no-tests.sh` | Stop | 改过业务代码却没跑过测试的 session，Stop 时拦下不让结束 |
 | `hooks/session-context.sh` | SessionStart | 不拦任何操作。扫 cwd 下的 `.claude/plans/`，只扫一层，把 Status 为 In Progress 的 plan 注入上下文 |
 
-脚本要拒绝一次操作，有两种写法，两种都写在 Claude Code 的 hook 协议里：`block-pip.sh` 与 `block-hidden-tests.sh` 输出带 `permissionDecision: "deny"` 的 JSON；`block-absolute-paths.sh`、`block-unplanned-sprawl.sh`、`block-no-tests.sh` 用 `exit 2` 加 stderr。两个存状态的脚本各带一份自测脚本：
+脚本要拒绝一次操作，有两种写法，两种都写在 Claude Code 的 hook 协议里：`block-pip.sh` 与 `block-hidden-tests.sh` 输出带 `permissionDecision: "deny"` 的 JSON；`block-absolute-paths.sh` 与 `block-no-tests.sh` 用 `exit 2` 加 stderr。`hooks/tests/` 下有一份自测脚本，测的是 `session-context.sh`：
 
 ```
-$ bash hooks/tests/test-block-unplanned-sprawl.sh
-block-unplanned-sprawl.sh: 7 passed, 0 failed
-
 $ bash hooks/tests/test-session-context.sh
 session-context.sh: 8 passed, 0 failed
 ```
@@ -74,7 +68,7 @@ session-context.sh: 8 passed, 0 failed
 
 ### 盲测分离：出题的和答题的互相看不见
 
-高风险工作单元（计费、权限、判分、迁移、不可逆数据操作）分三步做。
+用户点名「盲测」，高风险工作单元（计费、权限、判分、迁移、不可逆数据操作）就分三步做。
 
 `agents/test-author.md` 只拿 spec，从不读实现代码，产出两份测试：`tests/visible/<unit>_test.py` 放 2-3 个用例给实现者当样例，`tests/hidden/<unit>_test.py` 放 10 个以上的用例，覆盖每一个 error case 和每一处边界情况。
 
@@ -117,7 +111,7 @@ PASSED: 8/12 test cases
 
 ## hooks 挂在两个地方
 
-**全局这一级**的 hook 挂在 `settings.json` 里，对所有 session、所有 agent 生效。`settings.example.json` 里挂了 4 个 hook：`block-pip.sh`、`block-absolute-paths.sh`、`block-unplanned-sprawl.sh`、`session-context.sh`。
+**全局这一级**的 hook 挂在 `settings.json` 里，对所有 session、所有 agent 生效。`settings.example.json` 里挂了 3 个 hook：`block-pip.sh`、`block-absolute-paths.sh`、`session-context.sh`。
 
 **sub-agent 这一级**的 hook 挂在 agent 定义的 frontmatter 里，只在那一个 sub-agent 的生命周期内生效。`agents/function-implementer.md` 挂了 2 个 hook：
 
@@ -235,13 +229,13 @@ find ~/.claude ~/.agents -maxdepth 2 -type l -lname '*claude-harness*' -delete
 
 这套测试原先不失败。它的夹具建完假 repo 就直接跑脚本，从不 `git init`，脚本第一步用 `git ls-files` 取测试文件清单，清单永远是空的。脚本走「未发现测试文件」那条分支提前退出并返回 0，断言核对的是一份空报告。夹具补上 `git init` 之后，上面这些失败才第一次暴露出来。
 
-`hooks/` 下的两份自测脚本不受影响，跑起来全部通过，输出贴在上面「第二层」那节。
+`hooks/` 下的那份自测脚本不受影响，跑起来全部通过，输出贴在上面「第二层」那节。
 
 ## 4 个 skill
 
 | skill | 做什么 |
 |---|---|
-| `skills/feature-workflow/` | 一个 feature 牵涉多个工作单元时的整套交付流程，含 plan 模板、测试义务表、sub-agent 派发与验收规则 |
+| `skills/feature-workflow/` | 高危改动动手前先跟用户对齐：把不超过 10 行的说明贴进对话，按命中的风险条目逐条回答对应的问题，用户认可后，测试、实现、验证由主 session 自己做；红队评审、盲测分离、终审、把工作单元拆开并行做，这四件事用户点名才启用 |
 | `skills/de-ai-writing/` | 去 AI 味写作流程：先收集材料再写，写完把读者会看到的句子提取出来逐句核查，`skills/de-ai-writing/scripts/check.pl` 做残渣检测 |
 | `skills/interface-design/` | 界面设计的硬性要求，先定信息层级：八条规则，`skills/interface-design/scripts/design-check.cjs` 用真截图加灰度高斯模糊算出画面第一眼焦点，再映射回具体 DOM 元素 |
 | `skills/push-code-to-main/` | 开分支、commit、开 PR、squash 合并、删掉分支与 worktree、同步 main，合并后确认这个 repo 的 CI 结论 |

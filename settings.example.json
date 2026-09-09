@@ -28,11 +28,6 @@
             "type": "command",
             "command": "bash $HOME/.claude/hooks/block-absolute-paths.sh",
             "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "bash $HOME/.claude/hooks/block-unplanned-sprawl.sh",
-            "timeout": 5
           }
         ]
       }
