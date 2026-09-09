@@ -19,7 +19,7 @@
 ```
 CLAUDE.md              全局规则：任务分流表、测试义务表、12 条铁律
 agents/                12 个 sub-agent 定义
-hooks/                 5 个 hook 脚本；hooks/tests/ 是自测脚本
+hooks/                 6 个 hook 脚本；hooks/tests/ 是自测脚本
 scripts/               run-hidden-tests.sh、check-ci-reachability.sh；scripts/tests/ 是自测脚本
 skills/                4 个 skill
 settings.example.json  settings.json 样例，里面写了全局 hook 怎么挂
@@ -47,7 +47,7 @@ install.sh             建软链接
 
 这个 session 没有结束，模型拿到的是一条拒绝消息。「写完代码跑测试」写在 prompt 里，模型可能照做也可能不照做；挂成 Stop hook，脚本在每个 session 结束前查一遍记录，改过业务代码又没跑过测试的 session 就结束不了。
 
-5 个脚本各管一件事：
+6 个脚本各管一件事：
 
 | 脚本 | 事件 | 拦什么 |
 |---|---|---|
@@ -56,12 +56,16 @@ install.sh             建软链接
 | `hooks/block-hidden-tests.sh` | PreToolUse · Read\|Glob\|Grep | 任何指向 `tests/hidden/` 的 Read、Glob、Grep |
 | `hooks/block-no-tests.sh` | Stop | 改过业务代码却没跑过测试的 session，Stop 时拦下不让结束 |
 | `hooks/session-context.sh` | SessionStart | 不拦任何操作。扫 cwd 下的 `.claude/plans/`，只扫一层，把 Status 为 In Progress 的 plan 注入上下文 |
+| `hooks/check-prose-output.sh` | Stop | 不拦任何操作。本 session 加载过 `de-ai-writing` 时，把这一轮打给用户的正文喂给 `check.pl`，命中处列出来给用户看 |
 
-脚本要拒绝一次操作，有两种写法，两种都写在 Claude Code 的 hook 协议里：`block-pip.sh` 与 `block-hidden-tests.sh` 输出带 `permissionDecision: "deny"` 的 JSON；`block-absolute-paths.sh` 与 `block-no-tests.sh` 用 `exit 2` 加 stderr。`hooks/tests/` 下有一份自测脚本，测的是 `session-context.sh`：
+脚本要拒绝一次操作，有两种写法，两种都写在 Claude Code 的 hook 协议里：`block-pip.sh` 与 `block-hidden-tests.sh` 输出带 `permissionDecision: "deny"` 的 JSON；`block-absolute-paths.sh` 与 `block-no-tests.sh` 用 `exit 2` 加 stderr。`hooks/tests/` 下有两份自测脚本，测的是这两个不拦操作的 hook：
 
 ```
 $ bash hooks/tests/test-session-context.sh
 session-context.sh: 8 passed, 0 failed
+
+$ bash hooks/tests/test-check-prose-output.sh
+check-prose-output.sh: 5 passed, 0 failed
 ```
 
 ## 第三层：agents 与 scripts 把职责分开
@@ -111,7 +115,7 @@ PASSED: 8/12 test cases
 
 ## hooks 挂在两个地方
 
-**全局这一级**的 hook 挂在 `settings.json` 里，对所有 session、所有 agent 生效。`settings.example.json` 里挂了 3 个 hook：`block-pip.sh`、`block-absolute-paths.sh`、`session-context.sh`。
+**全局这一级**的 hook 挂在 `settings.json` 里，对所有 session、所有 agent 生效。`settings.example.json` 里挂了 4 个 hook：`block-pip.sh`、`block-absolute-paths.sh`、`session-context.sh`、`check-prose-output.sh`。
 
 **sub-agent 这一级**的 hook 挂在 agent 定义的 frontmatter 里，只在那一个 sub-agent 的生命周期内生效。`agents/function-implementer.md` 挂了 2 个 hook：
 
@@ -137,7 +141,7 @@ hooks:
 
 **这套配置接管你整个全局 Claude Code 配置**，不是并进去。`install.sh` 会把 `~/.claude` 下的 `CLAUDE.md`、`agents`、`hooks`、`scripts` 四项换成指向本 repo 的软链接，`plans` 与 `settings.json` 指向你的 private repo。你原有的这几项会被改名成 `<原名>.bak-<时间戳>` 留在原地，但不会被合并——你自己的权限配置、MCP server、statusline 要手工并进 `<private>/settings.json`。
 
-**运行时依赖**：Claude Code（要支持 agent frontmatter 里的 `skills:` 与 `hooks:` 字段）、bash、git、`jq`（hook 脚本解析工具调用的 JSON）。另外两个 skill 各自还要一样东西：`skills/de-ai-writing/scripts/check.pl` 要 Perl，`skills/interface-design/scripts/design-check.cjs` 要 Node 和 Playwright。这两样不装也不影响其余部分。脚本按 macOS 与 Linux 写，没有在 Windows 上验证过。
+**运行时依赖**：Claude Code（要支持 agent frontmatter 里的 `skills:` 与 `hooks:` 字段）、bash、git、`jq`（hook 脚本解析工具调用的 JSON）。另外两个 skill 各自还要一样东西：`skills/de-ai-writing/scripts/check.pl` 与 `hooks/check-prose-output.sh` 要 Perl，`skills/interface-design/scripts/design-check.cjs` 要 Node 和 Playwright。这两样不装也不影响其余部分。脚本按 macOS 与 Linux 写，没有在 Windows 上验证过。
 
 ### 装
 
@@ -236,7 +240,7 @@ find ~/.claude ~/.agents -maxdepth 2 -type l -lname '*claude-harness*' -delete
 | skill | 做什么 |
 |---|---|
 | `skills/feature-workflow/` | 高危改动动手前先跟用户对齐：把不超过 10 行的说明贴进对话，按命中的风险条目逐条回答对应的问题，用户认可后，测试、实现、验证由主 session 自己做；红队评审、盲测分离、终审、把工作单元拆开并行做，这四件事用户点名才启用 |
-| `skills/de-ai-writing/` | 去 AI 味写作流程：先收集材料再写，写完把读者会看到的句子提取出来逐句核查，`skills/de-ai-writing/scripts/check.pl` 做残渣检测 |
+| `skills/de-ai-writing/` | 去 AI 味写作流程：先收集材料再写，写完把读者会看到的句子提取出来跑 `skills/de-ai-writing/scripts/check.pl` 做残渣检测，要判断的那些检查连同改写一起交给没参与写作的 sub-agent。`skills/de-ai-writing/tests/` 是 check.pl 的回归语料，改规则之后跑 `bash tests/run.sh` 量召回与误报两个数 |
 | `skills/interface-design/` | 界面设计的硬性要求，先定信息层级：八条规则，`skills/interface-design/scripts/design-check.cjs` 用真截图加灰度高斯模糊算出画面第一眼焦点，再映射回具体 DOM 元素 |
 | `skills/push-code-to-main/` | 开分支、commit、开 PR、squash 合并、删掉分支与 worktree、同步 main，合并后确认这个 repo 的 CI 结论 |
 
