@@ -18,13 +18,12 @@
 
 ```
 CLAUDE.md              全局规则：任务分流表、测试义务表、12 条铁律
-agents/                12 个 sub-agent 定义
+agents/                12 个 sub-agent 定义；agents/assets/ 放 ui-designer 用的 Swift 预览包模板
 hooks/                 6 个 hook 脚本；hooks/tests/ 是自测脚本
 scripts/               run-hidden-tests.sh、check-ci-reachability.sh；scripts/tests/ 是自测脚本
 skills/                4 个 skill
 settings.example.json  settings.json 样例，里面写了全局 hook 怎么挂
 statusline-command.sh  状态栏脚本，Gruvbox 配色；要用的话在 settings.json 里挂 statusLine
-install.sh             建软链接
 ```
 
 ## 第一层：判断条件写在 CLAUDE.md 里
@@ -107,7 +106,7 @@ PASSED: 8/12 test cases
 | `agents/plan-reviewer.md` | opus | plan 红队：同步路径上的调用预算、并发与锁、幂等、新增测试 CI 跑不跑得到、迁移能不能回退、注入点、出事怎么回滚 |
 | `agents/impl-reviewer.md` | sonnet | 高风险工作单元终审：spec 合规 + 质量 + 安全，一遍走完 |
 | `agents/repo-analyzer.md` | sonnet | 通读仓库，只读不写，把技术栈与开发流程的事实整理出来 |
-| `agents/ui-designer.md` | opus | 界面设计，交付可在浏览器打开的 HTML 设计稿 |
+| `agents/ui-designer.md` | opus | 界面设计，按目标载体分两条路：网页类交付可在浏览器打开的 HTML 设计稿，macOS 原生界面交付可 `swift run` 打开的 AppKit 设计稿 |
 | `agents/prose-finisher.md` | opus | 给面向人类读者的文字做去 AI 味收尾 |
 | `agents/prose-auditor.md` | opus | 交付前的最后一道审查：只拿用户原话和成品 |
 
@@ -139,63 +138,56 @@ hooks:
 
 ### 装之前先知道两件事
 
-**这套配置接管你整个全局 Claude Code 配置**，不是并进去。`install.sh` 会把 `~/.claude` 下的 `CLAUDE.md`、`agents`、`hooks`、`scripts` 四项换成指向本 repo 的软链接，`plans` 与 `settings.json` 指向你的 private repo。你原有的这几项会被改名成 `<原名>.bak-<时间戳>` 留在原地，但不会被合并——你自己的权限配置、MCP server、statusline 要手工并进 `<private>/settings.json`。
+**这套配置接管你整个全局 Claude Code 配置**，不是并进去。下面的命令把 `CLAUDE.md`、`agents`、`hooks`、`scripts`、`skills` 拷进 `~/.claude`，同名文件直接覆盖，你原有的同名内容就没了——先备份 `~/.claude` 再装。`settings.json` 本 repo 只给样例，你自己的权限配置、MCP server、statusline 要手工并进去。
 
-**运行时依赖**：Claude Code（要支持 agent frontmatter 里的 `skills:` 与 `hooks:` 字段）、bash、git、`jq`（hook 脚本解析工具调用的 JSON）。另外两个 skill 各自还要一样东西：`skills/de-ai-writing/scripts/check.pl` 与 `hooks/check-prose-output.sh` 要 Perl，`skills/interface-design/scripts/design-check.cjs` 要 Node 和 Playwright。这两样不装也不影响其余部分。脚本按 macOS 与 Linux 写，没有在 Windows 上验证过。
+**运行时依赖**：Claude Code（要支持 agent frontmatter 里的 `skills:` 与 `hooks:` 字段）、bash、git、`jq`（hook 脚本解析工具调用的 JSON）。另外两个 skill 各自还要一样东西：`skills/de-ai-writing/scripts/check.pl` 与 `hooks/check-prose-output.sh` 要 Perl，`skills/interface-design/scripts/design-check.cjs` 要 Node 和 Playwright。这两样不装也不影响其余部分。`ui-designer` 设计 macOS 原生界面时要 Swift toolchain（`swift run`），这条路只在 macOS 上成立，设计网页不需要它。脚本按 macOS 与 Linux 写，没有在 Windows 上验证过。
 
 ### 装
 
 ```bash
 git clone https://github.com/<你的账号>/claude-harness.git ~/Documents/claude-harness
-mkdir -p ~/Documents/claude-harness-private
-cp ~/Documents/claude-harness/settings.example.json ~/Documents/claude-harness-private/settings.json
-bash ~/Documents/claude-harness/install.sh
+cd ~/Documents/claude-harness
+
+# 全局规则、agent、hook、脚本
+cp CLAUDE.md ~/.claude/CLAUDE.md
+cp -R agents hooks scripts ~/.claude/
+
+# skill 拷两处，下一节说为什么
+mkdir -p ~/.agents/skills ~/.claude/skills
+cp -R skills/* ~/.agents/skills/
+cp -R skills/* ~/.claude/skills/
+
+# settings.json 只给样例，自己的配置往里并
+cp settings.example.json ~/.claude/settings.json
 ```
 
-两个环境变量决定两个 repo 的位置，缺任一个目录脚本 `exit 1`：
+### 装完是一份拷贝，不是链接
 
-- `HARNESS_PUBLIC`，默认 `~/Documents/claude-harness`，就是本 repo，下文写作 `<public>`
-- `HARNESS_PRIVATE`，默认 `~/Documents/claude-harness-private`，放你自己的 `settings.json`、plan 文件和不打算公开的 skill，下文写作 `<private>`
+`~/.claude` 下的是实体文件，和 repo 各走各的。repo 里改了要重拷一次，`~/.claude` 里改了要手工回填 repo。
 
-本 repo 不含 `settings.json`，只给 `settings.example.json`，上面那段命令里的 `cp` 就是在补这一份。
+这个 repo 公开发布，发之前每份文件都要脱敏，所以两边不做同步：`~/.claude` 里是我每天在用的真实配置，含 repo 名、内部项目、私人路径；repo 里是把这些抹掉之后的版本。两边内容本来就不该逐字相同，链在一起等于每次编辑都要当场做一遍脱敏判断。漂移由我手工回填。
 
-`install.sh` 只做一件事：建软链接。实体文件放在 repo 里，`~/.claude` 与 `~/.agents` 下放软链接指过去。
+### skill 为什么拷两处
 
-| 软链接 | 指向 |
-|---|---|
-| `~/.claude/CLAUDE.md` | `<public>/CLAUDE.md` |
-| `~/.claude/agents`、`hooks`、`scripts` | `<public>/` 下的同名目录 |
-| `~/.agents/skills/<skill 名>` | `<public>/skills/<skill 名>` 或 `<private>/skills/<skill 名>` |
-| `~/.claude/skills/<skill 名>` | `~/.agents/skills/<skill 名>` |
-| `~/.claude/plans` | `<private>/plans` |
-| `~/.claude/settings.json` | `<private>/settings.json` |
+Claude Code 加载 skill 只认 `~/.claude/skills`，缺这一份 skill 不会被加载。
 
-### skill 为什么要走两跳
+另一处 `~/.agents/skills` 是三个固定路径的落点：`agents/ui-designer.md` 和 `skills/interface-design/SKILL.md` 里那条 `design-check.cjs` 命令、`hooks/check-prose-output.sh` 找 `check.pl` 的默认位置，都按这个路径写。这一层也让别的 agent 工具（比如 codex）读同一份 skill。
 
-Claude Code 加载 skill 只认 `~/.claude/skills`。这套配置把实体文件先落到 `~/.agents/skills`，再从 `~/.claude/skills` 链过去，中间这一层是为了让别的 agent 工具（比如 codex）读同一份 skill，不用各存一份。两跳都由 `install.sh` 建，缺第二跳 skill 不会被加载。
-
-方向不能反。git 只跟踪实体文件：实体文件在 repo 里、软链接在 `~/.claude` 下，你照常编辑 `~/.claude/CLAUDE.md`，写的就是 repo 里那个文件。`git status` 立刻能看见这次改动，`git diff` 直接显示这次改了哪条规则。反过来把实体文件留在 `~/.claude`、repo 里放软链接，commit 存进版本库的只是一串路径字符串，内容一个字都不进历史。
-
-目标位置已经有文件或目录时，`install.sh` 先把它备份成 `<原名>.bak-<时间戳>` 再建软链接；已经指对的软链接跳过。脚本可以重复运行，结果一样。
-
-两个 repo 放在别处，就把路径传进去：
-
-```bash
-env HARNESS_PUBLIC=/path/to/public HARNESS_PRIVATE=/path/to/private bash /path/to/public/install.sh
-```
+只用 Claude Code 的话，把这三处路径里的 `~/.agents/skills` 改成 `~/.claude/skills`，就只用拷一份。`check-prose-output.sh` 还认 `DE_AI_CHECK` 环境变量，`check.pl` 放哪都能指过去。
 
 ### 不想要了怎么退回去
 
-删掉 `install.sh` 建的那些软链接，把同名的 `.bak-<时间戳>` 改回原名：
+删掉拷进去的那几项，把装之前的备份放回原处：
 
 ```bash
-for p in ~/.claude/CLAUDE.md ~/.claude/agents ~/.claude/hooks ~/.claude/scripts ~/.claude/plans ~/.claude/settings.json; do
-  [ -L "$p" ] && rm "$p"
+rm -f ~/.claude/CLAUDE.md ~/.claude/settings.json
+rm -rf ~/.claude/agents ~/.claude/hooks ~/.claude/scripts
+for s in feature-workflow de-ai-writing interface-design push-code-to-main; do
+  rm -rf ~/.claude/skills/"$s" ~/.agents/skills/"$s"
 done
-find ~/.claude ~/.agents -maxdepth 2 -type l -lname '*claude-harness*' -delete
 ```
 
-备份文件带时间戳，按时间戳挑最早那一份改回去。repo 本身删不删都行，删了不影响已经恢复的配置。
+repo 本身删不删都行，删了不影响已经恢复的配置。
 
 ## 已知缺陷
 
@@ -253,7 +245,7 @@ find ~/.claude ~/.agents -maxdepth 2 -type l -lname '*claude-harness*' -delete
 - 上游 <https://github.com/alchaincyf/nuwa-skill>，MIT
 - 装到 `~/.agents/skills/huashu-nuwa`
 
-`install.sh` 只给本 repo `skills/` 下的 4 个 skill 建软链接，`huashu-nuwa` 不在其中，装不装都不影响这套配置运转。那 4 个 skill 都是我写的，别人写的 skill 我只额外装了女娲这一个，它的出处就是上面那两行。仓库里还有几处材料来自别人，不用你另外安装任何东西，归属写在文末「License 与第三方材料」一节。
+上面那段安装命令只拷本 repo `skills/` 下的 4 个 skill，`huashu-nuwa` 不在其中，装不装都不影响这套配置运转。那 4 个 skill 都是我写的，别人写的 skill 我只额外装了女娲这一个，它的出处就是上面那两行。仓库里还有几处材料来自别人，不用你另外安装任何东西，归属写在文末「License 与第三方材料」一节。
 
 ## 文档用什么语言写
 
