@@ -29,6 +29,25 @@ work just completed and stage each path by name.
 After staging, run `git status --short` again and confirm the staged set (first column
 `M`/`A`/`D`) is exactly the intended files, and unrelated files remain unstaged (` M`).
 
+### One PR, one purpose
+
+Every staged file belonging to this session still leaves one question open: how many
+*purposes* do they serve? Sort the staged paths into buckets — new feature, refactor of
+existing code, schema/migration, UI, infrastructure (retry, config, CI). One bucket is a
+focused PR.
+
+When the staged set spans two or more buckets, ask the user with AskUserQuestion whether
+to split, naming the buckets and the files in each:
+
+- **Split into one PR per purpose** — land them in sequence (recommended): each PR gets a
+  reviewer who can hold the whole change in their head, and a revert takes back exactly
+  one decision.
+- **Ship as one PR** — the user accepts the wider review surface and that a revert takes
+  the unrelated work with it.
+
+On split, land one bucket at a time: stage bucket 1, run Steps 2–4, then return here for
+bucket 2. On ship-as-one, continue with everything staged.
+
 ## Step 2 — Get onto a feature branch off up-to-date main
 
 First detect where the work lives: `git rev-parse --show-toplevel` and
