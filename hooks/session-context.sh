@@ -1,5 +1,12 @@
 #!/bin/bash
-# SessionStart hook: inject the cwd's in-progress plan status into context.
+# SessionStart hook: inject the cwd's plan-directory status into context.
+#
+# Contract with .claude/plans/: a plan file lives there only while its work is
+# unfinished (In Progress / Paused / Draft / Planned / Ready). Completed plans
+# are deleted on wrap-up — git history is the archive — so every file found
+# here is worth surfacing: active ones by status, finished-but-undeleted ones
+# as a cleanup reminder, and files whose "## Status" section is missing or
+# unrecognizable as contract violations to fix.
 #
 # cwd is read from the stdin JSON payload's `cwd` field, never from the
 # process's PWD (SessionStart's process PWD is unreliable). Only
@@ -37,43 +44,60 @@ if [ -z "$FILES" ]; then
 fi
 
 ENTRIES=()
+DONE_NAMES=()
 
 while IFS= read -r f; do
   [ -z "$f" ] && continue
-  [ "${#ENTRIES[@]}" -ge 5 ] && break
 
-  # A plan only has a "Status" field if it carries a "## Status" heading.
-  # Scan the section under that heading (up to the next "## " heading or
-  # EOF) for a recognized value; anything else counts as "no Status field"
-  # per spec and is excluded.
+  # Scan the section under "## Status" (up to the next "## " heading or EOF).
+  # Rule order matters: "In Progress" wins over "Completed" when a line
+  # mentions both (e.g. "In Progress——P1 已完成").
   STATUS=$(awk '
     /^## Status/ { infield=1; next }
     infield && /^## / { infield=0 }
     infield && /In Progress/ { print "In Progress"; exit }
-    infield && /Completed/ { print "Completed"; exit }
+    infield && /Paused/ { print "Paused"; exit }
+    infield && /Draft/ { print "Draft"; exit }
+    infield && /Planned/ { print "Planned"; exit }
+    infield && /Ready/ { print "Ready"; exit }
+    infield && /Completed|Implemented|Superseded|Done/ { print "DONE"; exit }
   ' "$f" 2>/dev/null)
 
-  if [ "$STATUS" != "In Progress" ]; then
+  BASE=$(basename "$f")
+
+  if [ "$STATUS" = "DONE" ]; then
+    DONE_NAMES+=("$BASE")
     continue
   fi
+
+  [ "${#ENTRIES[@]}" -ge 8 ] && continue
 
   TITLE=$(grep -m1 '^# ' "$f" 2>/dev/null | sed 's/^# *//')
   if [ -z "$TITLE" ]; then
     TITLE=$(basename "$f" .md)
   fi
 
-  ENTRIES+=("- $(basename "$f"): $TITLE [In Progress]")
+  if [ -z "$STATUS" ]; then
+    ENTRIES+=("- $BASE: $TITLE [Status 段缺失或值不规范——先补 ## Status，已完成的按约定删除]")
+  else
+    ENTRIES+=("- $BASE: $TITLE [$STATUS]")
+  fi
 done <<< "$FILES"
 
-if [ "${#ENTRIES[@]}" -eq 0 ]; then
+if [ "${#ENTRIES[@]}" -eq 0 ] && [ "${#DONE_NAMES[@]}" -eq 0 ]; then
   exit 0
 fi
 
-CONTEXT="In-progress plans in this repo:"
+CONTEXT="Plans in this repo (.claude/plans/):"
 for line in "${ENTRIES[@]}"; do
   CONTEXT="$CONTEXT
 $line"
 done
+
+if [ "${#DONE_NAMES[@]}" -gt 0 ]; then
+  CONTEXT="$CONTEXT
+- 另有 ${#DONE_NAMES[@]} 个已完成的 plan 未删除（约定=完成即删，git 历史承载）: ${DONE_NAMES[*]}"
+fi
 
 jq -n --arg ctx "$CONTEXT" '{
   hookSpecificOutput: {

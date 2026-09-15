@@ -1,6 +1,6 @@
 # claude-harness
 
-一套 Claude Code 全局配置：一份 `CLAUDE.md`、5 个 hook 脚本、11 个 sub-agent 定义、5 个 skill、2 个脚本。我从 2026 年 3 月起每天用它，2026 年 9 月把它从 `~/.claude` 与 `~/.agents/skills` 里抽出来开源，MIT 许可证。
+一套 Claude Code 全局配置：一份 `CLAUDE.md`、6 个 hook 脚本、11 个 sub-agent 定义、5 个 skill、2 个脚本。我从 2026 年 3 月起每天用它，2026 年 9 月把它从 `~/.claude` 与 `~/.agents/skills` 里抽出来开源，MIT 许可证。
 
 这套配置到 2026 年 9 月为止的演进史写在仓库第一个 commit 的 message 里，`git log` 拉到底就能看到。想知道某条规则为什么长成现在这样，那里有 35 条带日期的记录。
 
@@ -56,7 +56,7 @@ statusline-command.sh  状态栏脚本，Gruvbox 配色；要用的话在 settin
 | `hooks/block-absolute-paths.sh` | PreToolUse · Write\|Edit | 往 `.py`、`.ts`、`.sh` 等代码与配置文件里写死 `/Users/…`、`/home/…`、`C:\Users` |
 | `hooks/block-hidden-tests.sh` | PreToolUse · Read\|Glob\|Grep | 任何指向 `tests/hidden/` 的 Read、Glob、Grep |
 | `hooks/block-no-tests.sh` | Stop | 改过业务代码却没跑过测试的 session，Stop 时拦下不让结束 |
-| `hooks/session-context.sh` | SessionStart | 不拦任何操作。扫 cwd 下的 `.claude/plans/`，只扫一层，把 Status 为 In Progress 的 plan 注入上下文 |
+| `hooks/session-context.sh` | SessionStart | 不拦任何操作。扫 cwd 下的 `.claude/plans/`，只扫一层，把未完成的 plan 连同 Status 注入上下文；已完成却没删的列成清理提醒，Status 段缺失或值不规范的点名待补 |
 | `hooks/check-prose-output.sh` | Stop | 不拦任何操作。本 session 加载过 `de-ai-writing` 时，把这一轮打给用户的正文喂给 `check.pl`，命中处列出来给用户看 |
 
 脚本要拒绝一次操作，有两种写法，两种都写在 Claude Code 的 hook 协议里：`block-pip.sh` 与 `block-hidden-tests.sh` 输出带 `permissionDecision: "deny"` 的 JSON；`block-absolute-paths.sh` 与 `block-no-tests.sh` 用 `exit 2` 加 stderr。`hooks/tests/` 下有两份自测脚本，测的是这两个不拦操作的 hook：
