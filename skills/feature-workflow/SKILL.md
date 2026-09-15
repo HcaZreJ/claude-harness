@@ -46,7 +46,6 @@ metadata:
 
 | 用户说 | 动作 |
 |---|---|
-| 「红队」 | 派 `plan-reviewer` 审 plan，FAIL 项修进 plan |
 | 「盲测」 | 派 `test-author` 出 visible + hidden 测试，架构师审过、stub 上全 FAIL 后，派 `function-implementer` 实现；hidden 结果经 `run-hidden-tests.sh` 只回通过数 |
 | 「终审」 | 派 `impl-reviewer` 审 spec 合规 + 质量 + 安全 |
 | 「并行拆开做」 | 拆 work unit 派 `unit-developer`，同文件单元按序；验收审测试 diff + 亲自重跑全量 |
