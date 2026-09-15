@@ -40,7 +40,7 @@ metadata:
 
 1. 关键用户路径对真实栈走通一次（curl / 浏览器 / 脚本，以真实输出为准）；新增测试目录跑 `check-ci-reachability.sh <repo>`，退出码 0 才算挂上 CI
 2. 按 Living Documentation 表更新文档；plan 文件若有，完成即删
-3. 汇报（铁律 8 的五件事）→ commit；push 由用户明确要求
+3. 汇报（铁律 8：写给没读过代码的 manager）→ commit；push 由用户明确要求
 
 ## Opt-in（用户点名才启用）
 
