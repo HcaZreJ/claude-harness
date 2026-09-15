@@ -40,7 +40,7 @@ statusline-command.sh  状态栏脚本，Gruvbox 配色；要用的话在 settin
 
 **代码写法**七条管的是函数内部长什么样：主路径留在最外层，前置条件用 guard 挡在前面，条件超过两三条就收进一个命名的判定函数；名字答得出「这是什么」和「接下来发生什么」；外部服务的字段名止于适配层；类型只描述真实存在的状态；业务规则算成一个值，副作用另起一段，权限、计费、判分因此才测得动；错误同时给机器读的 code 和人读的 message；一个变更一个目的。七条共用一个判断标准——让下一次改动更容易。每条配一组 before/after 代码放在 `skills/code-craft/`，写函数、重构、给代码写法做 review 时加载。
 
-`CLAUDE.md` 还有两节约束力更强、装上就一直生效的内容，装之前值得先看一眼。**Repo 初始化**要求每个仓库根目录有 `AGENTS.md` 作主入口，并指向 PROJECT / PATTERNS / TECHSTACK / DEVFLOW 四份内容文档；缺任何一份，进这个仓库先补文档再写业务代码。**Living Documentation** 规定改动触及什么就更新哪一份：功能或数据模型变了改 PROJECT.md，设计范式或代码约定变了改 PATTERNS.md，依赖或目录结构变了改 TECHSTACK.md，构建测试部署流程变了改 DEVFLOW.md。纯实现细节、bugfix、不改这些约定的重构不用动文档。这两节不合你的习惯就删掉，它们和三层机制之间没有依赖。
+`CLAUDE.md` 还有两节约束力更强、装上就一直生效的内容，装之前值得先看一眼。**Repo 初始化**要求每个仓库根目录有 `AGENTS.md` 作主入口，并指向 PROJECT / PATTERNS / TECHSTACK / DEVFLOW 四份内容文档；缺任何一份，进这个仓库先补文档再写业务代码。**Living Documentation** 规定改动触及什么就更新哪一份：产品的场景、用户、用法、要求或对标变了改 PROJECT.md，设计范式或代码约定变了改 PATTERNS.md，依赖、目录结构或核心 data model 变了改 TECHSTACK.md，构建测试部署流程变了改 DEVFLOW.md。纯实现细节、bugfix、不改这些约定的重构不用动文档。这两节不合你的习惯就删掉，它们和三层机制之间没有依赖。
 
 ## 第二层：hooks 在工具层拦下操作
 
