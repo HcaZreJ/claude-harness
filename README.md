@@ -1,6 +1,6 @@
 # claude-harness
 
-一套 Claude Code 全局配置：一份 `CLAUDE.md`、5 个 hook 脚本、12 个 sub-agent 定义、4 个 skill、2 个脚本。我从 2026 年 3 月起每天用它，2026 年 9 月把它从 `~/.claude` 与 `~/.agents/skills` 里抽出来开源，MIT 许可证。
+一套 Claude Code 全局配置：一份 `CLAUDE.md`、5 个 hook 脚本、11 个 sub-agent 定义、5 个 skill、2 个脚本。我从 2026 年 3 月起每天用它，2026 年 9 月把它从 `~/.claude` 与 `~/.agents/skills` 里抽出来开源，MIT 许可证。
 
 这套配置到 2026 年 9 月为止的演进史写在仓库第一个 commit 的 message 里，`git log` 拉到底就能看到。想知道某条规则为什么长成现在这样，那里有 35 条带日期的记录。
 
@@ -17,28 +17,30 @@
 ## 仓库结构
 
 ```
-CLAUDE.md              全局规则：任务分流表、测试义务表、12 条铁律
-agents/                12 个 sub-agent 定义；agents/assets/ 放 ui-designer 用的 Swift 预览包模板
+CLAUDE.md              全局规则：任务分流表、测试义务表、代码写法七条、12 条铁律
+agents/                11 个 sub-agent 定义；agents/assets/ 放 ui-designer 用的 Swift 预览包模板
 hooks/                 6 个 hook 脚本；hooks/tests/ 是自测脚本
 scripts/               run-hidden-tests.sh、check-ci-reachability.sh；scripts/tests/ 是自测脚本
-skills/                4 个 skill
+skills/                5 个 skill
 settings.example.json  settings.json 样例，里面写了全局 hook 怎么挂
 statusline-command.sh  状态栏脚本，Gruvbox 配色；要用的话在 settings.json 里挂 statusLine
 ```
 
 ## 第一层：判断条件写在 CLAUDE.md 里
 
-全文 105 行，主体是两张表格。
+全文 119 行，主体是两张表格加一份代码写法判据。
 
 **任务分流表**列了 4 个条件：这次改动触及 schema、migration、数据模型；触及 auth、权限、计费、判分；做不可逆数据操作；或者用户说了 plan、设计、规划、重构、架构。命中任何一条就加载 `skills/feature-workflow/SKILL.md`，一条都不命中就直接动手。这 4 个条件只看改动的性质——碰没碰数据结构、权限、钱、不可逆操作——不看改了几个文件、改动有多大。
 
-加载之后，这份 skill 要求三件事。先在对话里贴一段不超过 10 行的说明，跟用户对齐：要做什么、不做什么、怎么算验收通过、有哪些高危假设，用户认可了再动手。再按 skill 里那张风险表，改动命中哪一条就在说明末尾回答对应的问题：migration 能不能回退；重复提交和重试是什么后果；外部输入在流进 prompt、SQL、shell 之前经过哪些边界检查；上线之后出问题怎么回滚。**之后的测试、实现、验证由主 session 自己做，不派 sub-agent**——红队评审、盲测分离、终审、把工作单元拆开并行做，这四件事列在 skill 末尾的 opt-in 表里，用户说出「红队」「盲测」「终审」「并行拆开做」才分别启用。
+加载之后，这份 skill 要求三件事。先在对话里贴一段不超过 10 行的说明，跟用户对齐：要做什么、不做什么、怎么算验收通过、有哪些高危假设，用户认可了再动手。再按 skill 里那张风险表，改动命中哪一条就在说明末尾回答对应的问题：migration 能不能回退；重复提交和重试是什么后果；外部输入在流进 prompt、SQL、shell 之前经过哪些边界检查；上线之后出问题怎么回滚。**之后的测试、实现、验证由主 session 自己做，不派 sub-agent**——盲测分离、终审、把工作单元拆开并行做，这三件事列在 skill 末尾的 opt-in 表里，用户说出「盲测」「终审」「并行拆开做」才分别启用。
 
 **测试义务表**按改动内容分 5 档，同时命中多条时取最严的一条。改到计费、权限、判分、迁移的代码，或者做不可逆数据操作，必须写测试，按 test-first 做，用户点名「盲测」才做盲测分离；改动含条件分支、计算、状态推导，按 test-first 做，最多 8 个用例；普通函数与模块之间的粘合代码，按 test-first 做，最多 4 个用例；纯样式与静态文案，跑起来验收，留下命令输出或截图；配置与文档，不要求测试。新增测试目录时先跑一次 `scripts/check-ci-reachability.sh`——CI 选不中的测试从不运行。
 
 这两张表格的条件，动手的时候照着一条条对就能判定。剩下的 12 条铁律也一样，例如「跑命令拿输出再下结论」「范围 = 用户字面需求」「push 由用户明确要求」。
 
-`CLAUDE.md` 还有两节约束力更强、装上就一直生效的内容，装之前值得先看一眼。**Repo 初始化**要求每个仓库根目录有 `AGENTS.md` 作主入口，并指向 PROJECT / PATTERNS / TECHSTACK / DEVFLOW 四份内容文档；缺任何一份，进这个仓库先补文档再写业务代码。**Living Documentation** 规定改动触及什么就更新哪一份：功能或数据模型变了改 PROJECT.md，设计范式或代码约定变了改 PATTERNS.md，依赖或目录结构变了改 TECHSTACK.md，构建测试部署流程变了改 DEVFLOW.md。纯实现细节、bugfix、不改这些约定的重构不用动文档。这两节不合你的习惯就删掉，它们和三层机制之间没有依赖。
+**代码写法**七条管的是函数内部长什么样：主路径留在最外层，前置条件用 guard 挡在前面，条件超过两三条就收进一个命名的判定函数；名字答得出「这是什么」和「接下来发生什么」；外部服务的字段名止于适配层；类型只描述真实存在的状态；业务规则算成一个值，副作用另起一段，权限、计费、判分因此才测得动；错误同时给机器读的 code 和人读的 message；一个变更一个目的。七条共用一个判断标准——让下一次改动更容易。每条配一组 before/after 代码放在 `skills/code-craft/`，写函数、重构、给代码写法做 review 时加载。
+
+`CLAUDE.md` 还有两节约束力更强、装上就一直生效的内容，装之前值得先看一眼。**Repo 初始化**要求每个仓库根目录有 `AGENTS.md` 作主入口，并指向 PROJECT / PATTERNS / TECHSTACK / DEVFLOW 四份内容文档；缺任何一份，进这个仓库先补文档再写业务代码。**Living Documentation** 规定改动触及什么就更新哪一份：产品的场景、用户、用法、要求或对标变了改 PROJECT.md，设计范式或代码约定变了改 PATTERNS.md，依赖、目录结构或核心 data model 变了改 TECHSTACK.md，构建测试部署流程变了改 DEVFLOW.md。纯实现细节、bugfix、不改这些约定的重构不用动文档。这两节不合你的习惯就删掉，它们和三层机制之间没有依赖。
 
 ## 第二层：hooks 在工具层拦下操作
 
@@ -89,11 +91,11 @@ PASSED: 8/12 test cases
 
 `agents/prose-auditor.md` 的 `tools` 只有 `Read`。派它的时候只给两样东西：用户在本次任务里发出的全部消息原文和成品的路径。草稿、调研档案、需求讨论、repo 里的代码，都不在它的输入里，它也不去找。
 
-它判定两件事：一是仅凭这两样，读者能不能读懂；二是成品有没有回答用户真正问的问题。写成品的 agent 一路积累了大量背景，读自己写的句子时会自动把缺的意思补上，这类缺口它自己审不出来。审查者的上下文里没有这些背景，才不会跟着一起补。`agents/plan-reviewer.md` 做 plan 红队评审用的是同一个做法。
+它判定两件事：一是仅凭这两样，读者能不能读懂；二是成品有没有回答用户真正问的问题。写成品的 agent 一路积累了大量背景，读自己写的句子时会自动把缺的意思补上，这类缺口它自己审不出来。审查者的上下文里没有这些背景，才不会跟着一起补。
 
-### 12 个 agent
+### 11 个 agent
 
-前三个与 Claude Code 内置的 agent 同名，装上之后覆盖内置版本而不是并列存在；其余九个是新增的。
+前三个与 Claude Code 内置的 agent 同名，装上之后覆盖内置版本而不是并列存在；其余八个是新增的。
 
 | 定义文件 | model | 职责 |
 |---|---|---|
@@ -103,7 +105,6 @@ PASSED: 8/12 test cases
 | `agents/unit-developer.md` | sonnet | 常规工作单元：从 spec 推导测试 → 在 stub 上确认红灯 → 实现到测试全部通过 |
 | `agents/test-author.md` | sonnet | 盲测分离的出题方 |
 | `agents/function-implementer.md` | sonnet | 盲测分离的答题方 |
-| `agents/plan-reviewer.md` | opus | plan 红队：同步路径上的调用预算、并发与锁、幂等、新增测试 CI 跑不跑得到、迁移能不能回退、注入点、出事怎么回滚 |
 | `agents/impl-reviewer.md` | sonnet | 高风险工作单元终审：spec 合规 + 质量 + 安全，一遍走完 |
 | `agents/repo-analyzer.md` | sonnet | 通读仓库，只读不写，把技术栈与开发流程的事实整理出来 |
 | `agents/ui-designer.md` | opus | 界面设计，按目标载体分两条路：网页类交付可在浏览器打开的 HTML 设计稿，macOS 原生界面交付可 `swift run` 打开的 AppKit 设计稿 |
@@ -227,11 +228,12 @@ repo 本身删不删都行，删了不影响已经恢复的配置。
 
 `hooks/` 下的那份自测脚本不受影响，跑起来全部通过，输出贴在上面「第二层」那节。
 
-## 4 个 skill
+## 5 个 skill
 
 | skill | 做什么 |
 |---|---|
-| `skills/feature-workflow/` | 高危改动动手前先跟用户对齐：把不超过 10 行的说明贴进对话，按命中的风险条目逐条回答对应的问题，用户认可后，测试、实现、验证由主 session 自己做；红队评审、盲测分离、终审、把工作单元拆开并行做，这四件事用户点名才启用 |
+| `skills/feature-workflow/` | 高危改动动手前先跟用户对齐：把不超过 10 行的说明贴进对话，按命中的风险条目逐条回答对应的问题，用户认可后，测试、实现、验证由主 session 自己做；盲测分离、终审、把工作单元拆开并行做，这三件事用户点名才启用 |
+| `skills/code-craft/` | 写函数时的七条判据，每条配一组 before/after：主路径留在最外层、名字给出业务含义、外部系统的字段名止于适配层、类型只描述真实存在的状态、决策算成值而副作用另起一段、错误同时给 code 与 message、一个变更一个目的 |
 | `skills/de-ai-writing/` | 去 AI 味写作流程：先收集材料再写，写完把读者会看到的句子提取出来跑 `skills/de-ai-writing/scripts/check.pl` 做残渣检测，要判断的那些检查连同改写一起交给没参与写作的 sub-agent。`skills/de-ai-writing/tests/` 是 check.pl 的回归语料，改规则之后跑 `bash tests/run.sh` 量召回与误报两个数 |
 | `skills/interface-design/` | 界面设计的硬性要求，先定信息层级：八条规则，`skills/interface-design/scripts/design-check.cjs` 用真截图加灰度高斯模糊算出画面第一眼焦点，再映射回具体 DOM 元素 |
 | `skills/push-code-to-main/` | 开分支、commit、开 PR、squash 合并、删掉分支与 worktree、同步 main，合并后确认这个 repo 的 CI 结论 |
@@ -245,11 +247,11 @@ repo 本身删不删都行，删了不影响已经恢复的配置。
 - 上游 <https://github.com/alchaincyf/nuwa-skill>，MIT
 - 装到 `~/.agents/skills/huashu-nuwa`
 
-上面那段安装命令只拷本 repo `skills/` 下的 4 个 skill，`huashu-nuwa` 不在其中，装不装都不影响这套配置运转。那 4 个 skill 都是我写的，别人写的 skill 我只额外装了女娲这一个，它的出处就是上面那两行。仓库里还有几处材料来自别人，不用你另外安装任何东西，归属写在文末「License 与第三方材料」一节。
+上面那段安装命令只拷本 repo `skills/` 下的 5 个 skill，`huashu-nuwa` 不在其中，装不装都不影响这套配置运转。那 5 个 skill 都是我写的，别人写的 skill 我只额外装了女娲这一个，它的出处就是上面那两行。仓库里还有几处材料来自别人，不用你另外安装任何东西，归属写在文末「License 与第三方材料」一节。
 
 ## 文档用什么语言写
 
-中文为主：`CLAUDE.md`、`feature-workflow`、`de-ai-writing`、`interface-design` 这 3 个 skill，加上 `Explore`、`general-purpose`、`Plan`、`unit-developer`、`plan-reviewer`、`ui-designer`、`prose-finisher`、`prose-auditor` 这 8 个 agent，正文都是中文。
+中文为主：`CLAUDE.md`、`feature-workflow`、`code-craft`、`de-ai-writing`、`interface-design` 这 4 个 skill，加上 `Explore`、`general-purpose`、`Plan`、`unit-developer`、`ui-designer`、`prose-finisher`、`prose-auditor` 这 7 个 agent，正文都是中文。
 
 `function-implementer`、`test-author`、`impl-reviewer`、`repo-analyzer` 这 4 个 agent，加上 `push-code-to-main` 这个 skill，正文都是英文。所有 agent 的 frontmatter `description` 中英文混着写，hook 脚本的注释也是。
 
