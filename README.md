@@ -107,7 +107,7 @@ PASSED: 8/12 test cases
 | `agents/function-implementer.md` | sonnet | 盲测分离的答题方 |
 | `agents/impl-reviewer.md` | sonnet | 高风险工作单元终审：spec 合规 + 质量 + 安全，一遍走完 |
 | `agents/repo-analyzer.md` | sonnet | 通读仓库，只读不写，把技术栈与开发流程的事实整理出来 |
-| `agents/ui-designer.md` | opus | 界面设计，按目标载体分两条路：网页类交付可在浏览器打开的 HTML 设计稿，macOS 原生界面交付可 `swift run` 打开的 AppKit 设计稿 |
+| `agents/ui-designer.md` | opus | 界面设计，出稿前先取市面上的做法——查仓库里已有的竞品调研，没有就联网找对标产品——再按目标载体分两条路：网页类交付可在浏览器打开的 HTML 设计稿，macOS 原生界面交付可 `swift run` 打开的 AppKit 设计稿 |
 | `agents/prose-finisher.md` | opus | 给面向人类读者的文字做去 AI 味收尾 |
 | `agents/prose-auditor.md` | opus | 交付前的最后一道审查：只拿用户原话和成品 |
 
