@@ -183,7 +183,7 @@ Claude Code 加载 skill 只认 `~/.claude/skills`，缺这一份 skill 不会�
 ```bash
 rm -f ~/.claude/CLAUDE.md ~/.claude/settings.json
 rm -rf ~/.claude/agents ~/.claude/hooks ~/.claude/scripts
-for s in feature-workflow de-ai-writing interface-design push-code-to-main; do
+for s in feature-workflow code-craft de-ai-writing interface-design push-code-to-main; do
   rm -rf ~/.claude/skills/"$s" ~/.agents/skills/"$s"
 done
 ```
