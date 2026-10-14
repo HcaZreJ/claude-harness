@@ -1,6 +1,6 @@
 # claude-harness
 
-一套 Claude Code 全局配置：一份 `CLAUDE.md`、6 个 hook 脚本、11 个 sub-agent 定义、5 个 skill、2 个脚本。我从 2026 年 3 月起每天用它，2026 年 9 月把它从 `~/.claude` 与 `~/.agents/skills` 里抽出来开源，MIT 许可证。
+一套 Claude Code 全局配置：一份 `CLAUDE.md`、6 个 hook 脚本、12 个 sub-agent 定义、5 个 skill、2 个脚本。我从 2026 年 3 月起每天用它，2026 年 9 月把它从 `~/.claude` 与 `~/.agents/skills` 里抽出来开源，MIT 许可证。
 
 这套配置到 2026 年 9 月为止的演进史写在仓库第一个 commit 的 message 里，`git log` 拉到底就能看到。想知道某条规则为什么长成现在这样，那里有 35 条带日期的记录。
 
@@ -18,7 +18,7 @@
 
 ```
 CLAUDE.md              全局规则：任务分流表、测试义务表、代码写法七条、12 条铁律
-agents/                11 个 sub-agent 定义；agents/assets/ 放 ui-designer 用的 Swift 预览包模板
+agents/                12 个 sub-agent 定义；agents/assets/ 放 ui-designer 用的 Swift 预览包模板
 hooks/                 6 个 hook 脚本；hooks/tests/ 是自测脚本
 scripts/               run-hidden-tests.sh、check-ci-reachability.sh；scripts/tests/ 是自测脚本
 skills/                5 个 skill
@@ -93,9 +93,11 @@ PASSED: 8/12 test cases
 
 它判定两件事：一是仅凭这两样，读者能不能读懂；二是成品有没有回答用户真正问的问题。写成品的 agent 一路积累了大量背景，读自己写的句子时会自动把缺的意思补上，这类缺口它自己审不出来。审查者的上下文里没有这些背景，才不会跟着一起补。
 
-### 11 个 agent
+`agents/cold-reader.md` 把同一个思路往前挪到出稿阶段：页面、文案、报告给用户看之前，派 3 个互不见面的实例，每个只拿到成品全文、一句读者人设、一句进入情境。它们逐块用自己的话复述、列出推不出含义的词、给每块信息归类（我的结果 / 教我怎么读的说明 / 让我做的事），再在撤走原文后只凭记住的要点答任务题。复述对不对由派发方对照事先写好的事实清单判，同一位置有 2 个以上实例出错才算缺陷；改完稿重测要换一批没读过旧稿的新实例。
 
-前三个与 Claude Code 内置的 agent 同名，装上之后覆盖内置版本而不是并列存在；其余八个是新增的。
+### 12 个 agent
+
+前三个与 Claude Code 内置的 agent 同名，装上之后覆盖内置版本而不是并列存在；其余九个是新增的。
 
 | 定义文件 | model | 职责 |
 |---|---|---|
@@ -110,6 +112,7 @@ PASSED: 8/12 test cases
 | `agents/ui-designer.md` | opus | 界面设计，出稿前先取市面上的做法——查仓库里已有的竞品调研，没有就联网找对标产品——再按目标载体分两条路：网页类交付可在浏览器打开的 HTML 设计稿，macOS 原生界面交付可 `swift run` 打开的 AppKit 设计稿 |
 | `agents/prose-finisher.md` | opus | 给面向人类读者的文字做去 AI 味收尾 |
 | `agents/prose-auditor.md` | opus | 交付前的最后一道审查：只拿用户原话和成品 |
+| `agents/cold-reader.md` | sonnet | 出稿闸门：零背景读者逐块复述、列生词、撤稿答题，三实例两票判缺陷 |
 
 `ui-designer` 与 `prose-finisher` 在 frontmatter 里用 `skills:` 字段挂上 `interface-design` 与 `de-ai-writing`。派发这两个 agent 的时候，SKILL.md 正文会跟着进它们各自的上下文，主 session 不用读这两份合计 270 行的规则文件。
 
@@ -251,7 +254,7 @@ repo 本身删不删都行，删了不影响已经恢复的配置。
 
 ## 文档用什么语言写
 
-中文为主：`CLAUDE.md`、`feature-workflow`、`code-craft`、`de-ai-writing`、`interface-design` 这 4 个 skill，加上 `Explore`、`general-purpose`、`Plan`、`unit-developer`、`ui-designer`、`prose-finisher`、`prose-auditor` 这 7 个 agent，正文都是中文。
+中文为主：`CLAUDE.md`、`feature-workflow`、`code-craft`、`de-ai-writing`、`interface-design` 这 4 个 skill，加上 `Explore`、`general-purpose`、`Plan`、`unit-developer`、`ui-designer`、`prose-finisher`、`prose-auditor`、`cold-reader` 这 8 个 agent，正文都是中文。
 
 `function-implementer`、`test-author`、`impl-reviewer`、`repo-analyzer` 这 4 个 agent，加上 `push-code-to-main` 这个 skill，正文都是英文。所有 agent 的 frontmatter `description` 中英文混着写，hook 脚本的注释也是。
 
