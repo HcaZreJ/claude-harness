@@ -1,6 +1,6 @@
 # claude-harness
 
-一套 Claude Code 全局配置：一份 `CLAUDE.md`、6 个 hook 脚本、12 个 sub-agent 定义、5 个 skill、2 个脚本。我从 2026 年 3 月起每天用它，2026 年 9 月把它从 `~/.claude` 与 `~/.agents/skills` 里抽出来开源，MIT 许可证。
+一套 Claude Code 全局配置：一份 `CLAUDE.md`、6 个 hook 脚本、12 个 sub-agent 定义、6 个 skill、2 个脚本。我从 2026 年 3 月起每天用它，2026 年 9 月把它从 `~/.claude` 与 `~/.agents/skills` 里抽出来开源，MIT 许可证。
 
 这套配置到 2026 年 9 月为止的演进史写在仓库第一个 commit 的 message 里，`git log` 拉到底就能看到。想知道某条规则为什么长成现在这样，那里有 35 条带日期的记录。
 
@@ -21,7 +21,7 @@ CLAUDE.md              全局规则：任务分流表、测试义务表、代码
 agents/                12 个 sub-agent 定义；agents/assets/ 放 ui-designer 用的 Swift 预览包模板
 hooks/                 6 个 hook 脚本；hooks/tests/ 是自测脚本
 scripts/               run-hidden-tests.sh、check-ci-reachability.sh；scripts/tests/ 是自测脚本
-skills/                5 个 skill
+skills/                6 个 skill
 settings.example.json  settings.json 样例，里面写了全局 hook 怎么挂
 statusline-command.sh  状态栏脚本，Gruvbox 配色；要用的话在 settings.json 里挂 statusLine
 ```
@@ -186,7 +186,7 @@ Claude Code 加载 skill 只认 `~/.claude/skills`，缺这一份 skill 不会�
 ```bash
 rm -f ~/.claude/CLAUDE.md ~/.claude/settings.json
 rm -rf ~/.claude/agents ~/.claude/hooks ~/.claude/scripts
-for s in feature-workflow code-craft de-ai-writing interface-design push-code-to-main; do
+for s in feature-workflow code-craft de-ai-writing interface-design product-thinking push-code-to-main; do
   rm -rf ~/.claude/skills/"$s" ~/.agents/skills/"$s"
 done
 ```
@@ -231,7 +231,7 @@ repo 本身删不删都行，删了不影响已经恢复的配置。
 
 `hooks/` 下的那份自测脚本不受影响，跑起来全部通过，输出贴在上面「第二层」那节。
 
-## 5 个 skill
+## 6 个 skill
 
 | skill | 做什么 |
 |---|---|
@@ -239,6 +239,7 @@ repo 本身删不删都行，删了不影响已经恢复的配置。
 | `skills/code-craft/` | 写函数时的七条判据，每条配一组 before/after：主路径留在最外层、名字给出业务含义、外部系统的字段名止于适配层、类型只描述真实存在的状态、决策算成值而副作用另起一段、错误同时给 code 与 message、一个变更一个目的 |
 | `skills/de-ai-writing/` | 去 AI 味写作流程：先收集材料再写，写完把读者会看到的句子提取出来跑 `skills/de-ai-writing/scripts/check.pl` 做残渣检测，要判断的那些检查连同改写一起交给没参与写作的 sub-agent。`skills/de-ai-writing/tests/` 是 check.pl 的回归语料，改规则之后跑 `bash tests/run.sh` 量召回与误报两个数 |
 | `skills/interface-design/` | 界面设计的硬性要求，先定信息层级：十条规则，`skills/interface-design/scripts/design-check.cjs` 用真截图加灰度高斯模糊算出画面第一眼焦点，再映射回具体 DOM 元素 |
+| `skills/product-thinking/` | 产品判断框架：评审提案、判需求真伪、立项写 PRD、给已有产品找「只改一处」。核心是一条五环证据链（具体的人与挣扎时刻、用户现在拿什么顶替、新价值翻不翻得过替换成本、证据分级、谁付钱），评审产出是指认最弱的一环；`references/` 放推导长文、案例与分梯队的阅读路径 |
 | `skills/push-code-to-main/` | 开分支、commit、开 PR、squash 合并、删掉分支与 worktree、同步 main，合并后确认这个 repo 的 CI 结论 |
 
 ## 我还装了这个第三方 skill
@@ -250,11 +251,11 @@ repo 本身删不删都行，删了不影响已经恢复的配置。
 - 上游 <https://github.com/alchaincyf/nuwa-skill>，MIT
 - 装到 `~/.agents/skills/huashu-nuwa`
 
-上面那段安装命令只拷本 repo `skills/` 下的 5 个 skill，`huashu-nuwa` 不在其中，装不装都不影响这套配置运转。那 5 个 skill 都是我写的，别人写的 skill 我只额外装了女娲这一个，它的出处就是上面那两行。仓库里还有几处材料来自别人，不用你另外安装任何东西，归属写在文末「License 与第三方材料」一节。
+上面那段安装命令只拷本 repo `skills/` 下的 6 个 skill，`huashu-nuwa` 不在其中，装不装都不影响这套配置运转。那 6 个 skill 都是我写的，别人写的 skill 我只额外装了女娲这一个，它的出处就是上面那两行。仓库里还有几处材料来自别人，不用你另外安装任何东西，归属写在文末「License 与第三方材料」一节。
 
 ## 文档用什么语言写
 
-中文为主：`CLAUDE.md`、`feature-workflow`、`code-craft`、`de-ai-writing`、`interface-design` 这 4 个 skill，加上 `Explore`、`general-purpose`、`Plan`、`unit-developer`、`ui-designer`、`prose-finisher`、`prose-auditor`、`cold-reader` 这 8 个 agent，正文都是中文。
+中文为主：`CLAUDE.md`、`feature-workflow`、`code-craft`、`de-ai-writing`、`interface-design`、`product-thinking` 这 5 个 skill，加上 `Explore`、`general-purpose`、`Plan`、`unit-developer`、`ui-designer`、`prose-finisher`、`prose-auditor`、`cold-reader` 这 8 个 agent，正文都是中文。
 
 `function-implementer`、`test-author`、`impl-reviewer`、`repo-analyzer` 这 4 个 agent，加上 `push-code-to-main` 这个 skill，正文都是英文。所有 agent 的 frontmatter `description` 中英文混着写，hook 脚本的注释也是。
 
