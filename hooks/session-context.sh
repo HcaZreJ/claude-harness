@@ -6,7 +6,9 @@
 # are deleted on wrap-up — git history is the archive — so every file found
 # here is worth surfacing: active ones by status, finished-but-undeleted ones
 # as a cleanup reminder, and files whose "## Status" section is missing or
-# unrecognizable as contract violations to fix.
+# unrecognizable as contract violations to fix. Only the first 8 active plans
+# get expanded entries (context economy); the rest are still named in an
+# overflow line — a plan must never silently vanish from the session's view.
 #
 # cwd is read from the stdin JSON payload's `cwd` field, never from the
 # process's PWD (SessionStart's process PWD is unreliable). Only
@@ -45,6 +47,7 @@ fi
 
 ENTRIES=()
 DONE_NAMES=()
+OVERFLOW_NAMES=()
 
 while IFS= read -r f; do
   [ -z "$f" ] && continue
@@ -70,7 +73,10 @@ while IFS= read -r f; do
     continue
   fi
 
-  [ "${#ENTRIES[@]}" -ge 8 ] && continue
+  if [ "${#ENTRIES[@]}" -ge 8 ]; then
+    OVERFLOW_NAMES+=("$BASE")
+    continue
+  fi
 
   TITLE=$(grep -m1 '^# ' "$f" 2>/dev/null | sed 's/^# *//')
   if [ -z "$TITLE" ]; then
@@ -93,6 +99,11 @@ for line in "${ENTRIES[@]}"; do
   CONTEXT="$CONTEXT
 $line"
 done
+
+if [ "${#OVERFLOW_NAMES[@]}" -gt 0 ]; then
+  CONTEXT="$CONTEXT
+- 另有 ${#OVERFLOW_NAMES[@]} 个进行中的 plan 未展开（读文件取 Status）: ${OVERFLOW_NAMES[*]}"
+fi
 
 if [ "${#DONE_NAMES[@]}" -gt 0 ]; then
   CONTEXT="$CONTEXT

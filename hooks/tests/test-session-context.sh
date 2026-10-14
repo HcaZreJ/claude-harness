@@ -161,9 +161,11 @@ test_session_context_empty_plans_dir() {
   fi
 }
 
-# --- test_session_context_truncates_at_eight ---
-test_session_context_truncates_at_eight() {
-  local name="test_session_context_truncates_at_eight"
+# --- test_session_context_overflow_named_beyond_eight ---
+# Only 8 plans get expanded entries; every plan past the cap must still be
+# named in an overflow line, so no unfinished plan silently disappears.
+test_session_context_overflow_named_beyond_eight() {
+  local name="test_session_context_overflow_named_beyond_eight"
   local cwd="$TEST_ROOT/repo4"
   mkdir -p "$cwd/.claude/plans"
   for i in 01 02 03 04 05 06 07 08 09 10; do
@@ -173,18 +175,25 @@ test_session_context_truncates_at_eight() {
   local ctx
   ctx=$(run_hook_context "$cwd") || { fail "$name (hook exited non-zero)"; return; }
 
-  local listed_count
-  listed_count=$(grep -oE 'plan-[0-9]{2}\.md' <<< "$ctx" | sort -u | wc -l | tr -d ' ')
+  local expanded_count
+  expanded_count=$(grep -cE '^- plan-[0-9]{2}\.md: Feature: plan [0-9]{2} \[In Progress\]$' <<< "$ctx")
 
   local line_count
   line_count=$(printf '%s' "$ctx" | wc -l | tr -d ' ')
   # printf without trailing newline undercounts by one line; normalize
   line_count=$((line_count + 1))
 
-  if [ "$listed_count" -eq 8 ] && [ "$line_count" -le 20 ]; then
-    pass "$name (listed=$listed_count lines=$line_count)"
+  local problems=""
+  [ "$expanded_count" -eq 8 ] || problems="$problems 展开条目应为8实为$expanded_count;"
+  [ "$line_count" -le 20 ] || problems="$problems 行数超20($line_count);"
+  grep -q '另有 2 个进行中的 plan 未展开' <<< "$ctx" || problems="$problems 未报出溢出数量;"
+  grep -q 'plan-09.md' <<< "$ctx" || problems="$problems 未点名 plan-09;"
+  grep -q 'plan-10.md' <<< "$ctx" || problems="$problems 未点名 plan-10;"
+
+  if [ -z "$problems" ]; then
+    pass "$name (expanded=$expanded_count lines=$line_count)"
   else
-    fail "$name (expected exactly 8 entries and <=20 lines, got listed=$listed_count lines=$line_count): $ctx"
+    fail "$name ($problems): $ctx"
   fi
 }
 
@@ -260,7 +269,7 @@ test_session_context_active_statuses_shown
 test_session_context_completed_plans_flagged_for_cleanup
 test_session_context_no_claude_dir
 test_session_context_empty_plans_dir
-test_session_context_truncates_at_eight
+test_session_context_overflow_named_beyond_eight
 test_session_context_malformed_json_input
 test_session_context_no_status_field_flagged
 test_session_context_never_recurses
