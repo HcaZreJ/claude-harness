@@ -235,7 +235,7 @@ repo 本身删不删都行，删了不影响已经恢复的配置。
 | `skills/feature-workflow/` | 高危改动动手前先跟用户对齐：把不超过 10 行的说明贴进对话，按命中的风险条目逐条回答对应的问题，用户认可后，测试、实现、验证由主 session 自己做；盲测分离、终审、把工作单元拆开并行做，这三件事用户点名才启用 |
 | `skills/code-craft/` | 写函数时的七条判据，每条配一组 before/after：主路径留在最外层、名字给出业务含义、外部系统的字段名止于适配层、类型只描述真实存在的状态、决策算成值而副作用另起一段、错误同时给 code 与 message、一个变更一个目的 |
 | `skills/de-ai-writing/` | 去 AI 味写作流程：先收集材料再写，写完把读者会看到的句子提取出来跑 `skills/de-ai-writing/scripts/check.pl` 做残渣检测，要判断的那些检查连同改写一起交给没参与写作的 sub-agent。`skills/de-ai-writing/tests/` 是 check.pl 的回归语料，改规则之后跑 `bash tests/run.sh` 量召回与误报两个数 |
-| `skills/interface-design/` | 界面设计的硬性要求，先定信息层级：八条规则，`skills/interface-design/scripts/design-check.cjs` 用真截图加灰度高斯模糊算出画面第一眼焦点，再映射回具体 DOM 元素 |
+| `skills/interface-design/` | 界面设计的硬性要求，先定信息层级：十条规则，`skills/interface-design/scripts/design-check.cjs` 用真截图加灰度高斯模糊算出画面第一眼焦点，再映射回具体 DOM 元素 |
 | `skills/push-code-to-main/` | 开分支、commit、开 PR、squash 合并、删掉分支与 worktree、同步 main，合并后确认这个 repo 的 CI 结论 |
 
 ## 我还装了这个第三方 skill
