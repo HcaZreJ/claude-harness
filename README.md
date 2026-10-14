@@ -56,7 +56,7 @@ statusline-command.sh  状态栏脚本，Gruvbox 配色；要用的话在 settin
 | `hooks/block-absolute-paths.sh` | PreToolUse · Write\|Edit | 往 `.py`、`.ts`、`.sh` 等代码与配置文件里写死 `/Users/…`、`/home/…`、`C:\Users` |
 | `hooks/block-hidden-tests.sh` | PreToolUse · Read\|Glob\|Grep | 任何指向 `tests/hidden/` 的 Read、Glob、Grep |
 | `hooks/block-no-tests.sh` | Stop | 改过业务代码却没跑过测试的 session，Stop 时拦下不让结束 |
-| `hooks/session-context.sh` | SessionStart | 不拦任何操作。扫 cwd 下的 `.claude/plans/`，只扫一层，把未完成的 plan 连同 Status 注入上下文；已完成却没删的列成清理提醒，Status 段缺失或值不规范的点名待补 |
+| `hooks/session-context.sh` | SessionStart | 不拦任何操作。扫 cwd 下的 `.claude/plans/`，只扫一层，把未完成的 plan 连同 Status 注入上下文；已完成却没删的列成清理提醒，Status 段缺失或值不规范的点名待补；未完成的 plan 只展开前 8 个，其余在一行里点名，不会悄悄漏掉 |
 | `hooks/check-prose-output.sh` | Stop | 不拦任何操作。本 session 加载过 `de-ai-writing` 时，把这一轮打给用户的正文喂给 `check.pl`，命中处列出来给用户看 |
 
 脚本要拒绝一次操作，有两种写法，两种都写在 Claude Code 的 hook 协议里：`block-pip.sh` 与 `block-hidden-tests.sh` 输出带 `permissionDecision: "deny"` 的 JSON；`block-absolute-paths.sh` 与 `block-no-tests.sh` 用 `exit 2` 加 stderr。`hooks/tests/` 下有两份自测脚本，测的是这两个不拦操作的 hook：
