@@ -21,7 +21,7 @@ metadata:
 - **验收判据** — 可观测，编号列出
 - **高危假设** — 仅列猜错影响为 high 且 repo 查不到的，每条附默认取值
 
-用户认可后开工。plan 落文件（`<repo>/.claude/plans/<slug>.md`，git tracked，含 Status 行）只在两种情况：用户主动说 plan / 规划，或任务明确跨 session 交接。落文件时内容同上四段加 work unit 清单，完成即删，git 历史承载。
+用户认可后开工。plan 落文件（`<repo>/.claude/plans/<slug>.md`，git tracked，含 Status 行）在四种情况：用户主动说 plan / 规划，收到一大段需求或设计描述，任务跨多个阶段或明确跨 session 交接，预计上下文超过 20 万 token。落文件时写上面四段、「已决定事项和否决方案」一节（照抄用户原话）、work unit 清单和 Status；每完成一个 work unit 更新 Status。上下文超过 20 万 token 时的交接照全局 CLAUDE.md 铁律 1。完成即删，git 历史承载。
 
 ## 2 · 风险闸（命中才答，附在对齐段末尾）
 
