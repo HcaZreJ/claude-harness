@@ -10,6 +10,22 @@ if ! echo "$FILE_PATH" | grep -qE '\.(py|js|ts|tsx|go|rs|java|yaml|yml|toml|json
   exit 0
 fi
 
+# Only check files inside a git repo and outside .claude/ (worktree code under .claude/worktrees/ is still checked).
+# Temp dirs, ~/.claude/, a repo's own .claude/ config and scratchpads, and files outside any repo pass.
+case "$FILE_PATH" in
+  /tmp/*|/private/tmp/*|/var/folders/*|/private/var/folders/*) exit 0 ;;
+esac
+REL="$FILE_PATH"
+case "$REL" in
+  */.claude/worktrees/*) REL="${REL#*/.claude/worktrees/}"; REL="${REL#*/}" ;;
+esac
+case "$REL" in
+  .claude/*|*/.claude/*) exit 0 ;;
+esac
+DIR=$(dirname "$FILE_PATH")
+while [ ! -d "$DIR" ] && [ "$DIR" != "/" ]; do DIR=$(dirname "$DIR"); done
+git -C "$DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
+
 # Extract new content based on tool type
 case "$TOOL_NAME" in
   Write)

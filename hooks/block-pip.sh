@@ -13,7 +13,8 @@ if echo "$COMMAND" | grep -qE '\bpip3?\s+(install|uninstall)\b'; then
   echo "$INPUT" | jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "deny"
+      permissionDecision: "deny",
+      permissionDecisionReason: "pip 直接安装被阻断，改用 uv：uv add <package>（有 pyproject）、uv pip install -r requirements.txt、uv run python script.py"
     },
     systemMessage: "BLOCKED: pip 直接安装被阻断。必须使用 uv:\n- uv add <package>\n- uv pip install -r requirements.txt\n- uv run python script.py"
   }'

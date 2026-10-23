@@ -2,11 +2,11 @@
 # SessionStart hook: inject the cwd's plan-directory status into context.
 #
 # Contract with .claude/plans/: a plan file lives there only while its work is
-# unfinished (In Progress / Paused / Draft / Planned / Ready). Completed plans
+# unfinished (In Progress / Paused / Draft / Planned / Ready, or 进行中 / 暂停 /
+# 草稿 / 未开始 / 待用户验收). Completed plans
 # are deleted on wrap-up — git history is the archive — so every file found
 # here is worth surfacing: active ones by status, finished-but-undeleted ones
-# as a cleanup reminder, and files whose "## Status" section is missing or
-# unrecognizable as contract violations to fix. Only the first 8 active plans
+# as a cleanup reminder, and the rest with whatever their Status says. Only the first 8 active plans
 # get expanded entries (context economy); the rest are still named in an
 # overflow line — a plan must never silently vanish from the session's view.
 #
@@ -53,17 +53,25 @@ while IFS= read -r f; do
   [ -z "$f" ] && continue
 
   # Scan the section under "## Status" (up to the next "## " heading or EOF).
-  # Rule order matters: "In Progress" wins over "Completed" when a line
-  # mentions both (e.g. "In Progress——P1 已完成").
+  # Rule order matters: an active status wins over a finished one when a line
+  # mentions both (e.g. "进行中。plan 01 已完成"). With no status word anywhere
+  # in the section, its first non-empty line is shown verbatim.
   STATUS=$(awk '
     /^## Status/ { infield=1; next }
     infield && /^## / { infield=0 }
-    infield && /In Progress/ { print "In Progress"; exit }
-    infield && /Paused/ { print "Paused"; exit }
-    infield && /Draft/ { print "Draft"; exit }
-    infield && /Planned/ { print "Planned"; exit }
-    infield && /Ready/ { print "Ready"; exit }
-    infield && /Completed|Implemented|Superseded|Done/ { print "DONE"; exit }
+    infield && /In Progress/ { print "In Progress"; found=1; exit }
+    infield && /进行中/ { print "进行中"; found=1; exit }
+    infield && /Paused/ { print "Paused"; found=1; exit }
+    infield && /暂停/ { print "暂停"; found=1; exit }
+    infield && /Draft/ { print "Draft"; found=1; exit }
+    infield && /草稿/ { print "草稿"; found=1; exit }
+    infield && /Planned/ { print "Planned"; found=1; exit }
+    infield && /未开始/ { print "未开始"; found=1; exit }
+    infield && /Ready/ { print "Ready"; found=1; exit }
+    infield && /待用户验收/ { print "待用户验收"; found=1; exit }
+    infield && /Completed|Implemented|Superseded|Done|已完成|已废弃/ { print "DONE"; found=1; exit }
+    infield && NF && first == "" { first = $0 }
+    END { if (!found && first != "") print "RAW:" first }
   ' "$f" 2>/dev/null)
 
   BASE=$(basename "$f")
@@ -84,7 +92,9 @@ while IFS= read -r f; do
   fi
 
   if [ -z "$STATUS" ]; then
-    ENTRIES+=("- $BASE: $TITLE [Status 段缺失或值不规范——先补 ## Status，已完成的按约定删除]")
+    ENTRIES+=("- $BASE: $TITLE [无 Status 段]")
+  elif [ "${STATUS#RAW:}" != "$STATUS" ]; then
+    ENTRIES+=("- $BASE: $TITLE [${STATUS#RAW:}]")
   else
     ENTRIES+=("- $BASE: $TITLE [$STATUS]")
   fi

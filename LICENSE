@@ -30,16 +30,14 @@ them, copyright in them stays with their respective holders, and no
 additional permission to reuse them has been obtained on your behalf. Item 4
 records a design influence rather than copied material.
 
-1. Built-in agent definitions. The `description` and `tools` fields in
-   agents/Explore.md and agents/Plan.md, and the `description` field in
-   agents/general-purpose.md, are reproduced verbatim from Claude Code's
-   built-in agents of the same name. Copyright in those fields belongs to
-   Anthropic. Each of these three files overrides the built-in agent it
-   shares a name with, which is why the fields are copied word for word:
-   `description` is what Claude Code reads to decide when to dispatch the
-   agent, and `tools` is what grants it its tool set, so editing either one
-   would make these files behave differently from the built-in versions they
-   replace. The body of each file is original.
+1. Built-in agent definition. The `description` field in
+   agents/general-purpose.md is reproduced verbatim from Claude Code's
+   built-in agent of the same name. Copyright in that field belongs to
+   Anthropic. The file overrides the built-in agent it shares a name with,
+   which is why the field is copied word for word: `description` is what
+   Claude Code reads to decide when to dispatch the agent, so editing it
+   would make this file behave differently from the built-in version it
+   replaces. The body of the file is original.
 
 2. Quoted sources in the research archives.
    skills/de-ai-writing/references/research.md and

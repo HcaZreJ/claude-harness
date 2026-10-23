@@ -218,27 +218,59 @@ test_session_context_malformed_json_input() {
 }
 
 # --- test_session_context_no_status_field_flagged ---
-# A plan with no readable "## Status" breaks the contract; surface it to fix.
+# A plan with no "## Status" is marked as such; an unrecognized status line is
+# shown verbatim so the session sees what the plan actually says.
 test_session_context_no_status_field_flagged() {
   local name="test_session_context_no_status_field_flagged"
   local cwd="$TEST_ROOT/repo5"
   mkdir -p "$cwd/.claude/plans"
   write_plan "$cwd/.claude/plans/nostatus.md" "Feature: no status" ""
-  write_plan "$cwd/.claude/plans/badstatus.md" "Feature: bad status" "进行中"
+  write_plan "$cwd/.claude/plans/oddstatus.md" "Feature: odd status" "等第三方回复"
 
   local ctx
   ctx=$(run_hook_context "$cwd") || { fail "$name (hook exited non-zero)"; return; }
 
   local problems=""
-  grep -q 'nostatus.md: Feature: no status \[Status 段缺失或值不规范' <<< "$ctx" \
-    || problems="$problems 缺 Status 的 plan 未报;"
-  grep -q 'badstatus.md: Feature: bad status \[Status 段缺失或值不规范' <<< "$ctx" \
-    || problems="$problems Status 值不规范的 plan 未报;"
+  grep -q 'nostatus.md: Feature: no status \[无 Status 段\]' <<< "$ctx" \
+    || problems="$problems 缺 Status 的 plan 未标;"
+  grep -q 'oddstatus.md: Feature: odd status \[等第三方回复\]' <<< "$ctx" \
+    || problems="$problems 认不出的状态未原样显示;"
+  grep -q '先补' <<< "$ctx" && problems="$problems 仍有命令式提示;"
 
   if [ -z "$problems" ]; then
     pass "$name"
   else
     fail "$name ($problems): $ctx"
+  fi
+}
+
+# --- test_session_context_chinese_statuses ---
+# Chinese status words are recognized: active ones listed with their label,
+# finished ones go to the cleanup line.
+test_session_context_chinese_statuses() {
+  local name="test_session_context_chinese_statuses"
+  local cwd="$TEST_ROOT/repo7"
+  mkdir -p "$cwd/.claude/plans"
+  write_plan "$cwd/.claude/plans/p1.md" "Feature: p1" "进行中。2026-10-22 开工，plan 01 已完成"
+  write_plan "$cwd/.claude/plans/p2.md" "Feature: p2" "暂停，等数据"
+  write_plan "$cwd/.claude/plans/p3.md" "Feature: p3" "待用户验收"
+  write_plan "$cwd/.claude/plans/p4.md" "Feature: p4" "未开始。由诊断会话写成"
+  write_plan "$cwd/.claude/plans/p5.md" "Feature: p5" "已完成（2026-10-22）"
+
+  local ctx
+  ctx=$(run_hook_context "$cwd") || { fail "$name (hook exited non-zero)"; return; }
+
+  local missing=""
+  grep -q 'p1.md: Feature: p1 \[进行中\]'     <<< "$ctx" || missing="$missing 进行中;"
+  grep -q 'p2.md: Feature: p2 \[暂停\]'       <<< "$ctx" || missing="$missing 暂停;"
+  grep -q 'p3.md: Feature: p3 \[待用户验收\]' <<< "$ctx" || missing="$missing 待用户验收;"
+  grep -q 'p4.md: Feature: p4 \[未开始\]'     <<< "$ctx" || missing="$missing 未开始;"
+  grep -q '已完成的 plan 未删除.*p5.md'         <<< "$ctx" || missing="$missing 已完成;"
+
+  if [ -z "$missing" ]; then
+    pass "$name"
+  else
+    fail "$name (missing or mislabeled:$missing): $ctx"
   fi
 }
 
@@ -272,6 +304,7 @@ test_session_context_empty_plans_dir
 test_session_context_overflow_named_beyond_eight
 test_session_context_malformed_json_input
 test_session_context_no_status_field_flagged
+test_session_context_chinese_statuses
 test_session_context_never_recurses
 
 echo

@@ -1,8 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(uv run pytest tests/visible/*)",
-      "Bash(bash ~/.claude/scripts/run-hidden-tests.sh *)",
       "Bash(* --version)",
       "Bash(* --help *)"
     ],
